@@ -1,35 +1,101 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, usePage, router } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
+import { useState, useEffect } from 'react';
+import { insforge } from '@/lib/insforge';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
 import PrimaryButton from '@/Components/PrimaryButton';
 
 export default function Settings() {
-    const { gemini_key, gemini_configured, linkedin_client_id, linkedin_client_secret, linkedin_configured, linkedin_connected, linkedin_oauth_url, flash } = usePage().props;
+    const [configs, setConfigs] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [flash, setFlash] = useState(null);
+    const [processing, setProcessing] = useState(false);
 
-    const form = useForm({
-        gemini_key: gemini_key || '',
-        linkedin_client_id: linkedin_client_id || '',
-        linkedin_client_secret: linkedin_client_secret || '',
+    const [formData, setFormData] = useState({
+        gemini_key: '',
+        linkedin_client_id: '',
+        linkedin_client_secret: '',
     });
 
-    const submit = (e) => {
-        e.preventDefault();
-        form.post(route('settings.update'));
-    };
+    useEffect(() => {
+        async function fetchConfigs() {
+            try {
+                const { data, error: fetchError } = await insforge.database
+                    .from('app_configs')
+                    .select('*');
 
-    const handleConnectLinkedIn = () => {
-        if (linkedin_oauth_url) {
-            window.location.href = linkedin_oauth_url;
+                if (fetchError) {
+                    setError(fetchError.message);
+                } else {
+                    const configMap = {};
+                    data?.forEach(c => { configMap[c.key] = c.value; });
+                    setConfigs(configMap);
+                    setFormData({
+                        gemini_key: configMap.GEMINI_API_KEY || '',
+                        linkedin_client_id: configMap.LINKEDIN_CLIENT_ID || '',
+                        linkedin_client_secret: configMap.LINKEDIN_CLIENT_SECRET || '',
+                    });
+                }
+            } catch (err) {
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchConfigs();
+    }, []);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setProcessing(true);
+        setError(null);
+
+        try {
+            const updates = [
+                { key: 'GEMINI_API_KEY', value: formData.gemini_key },
+                { key: 'LINKEDIN_CLIENT_ID', value: formData.linkedin_client_id },
+                { key: 'LINKEDIN_CLIENT_SECRET', value: formData.linkedin_client_secret },
+            ];
+
+            for (const update of updates) {
+                const { error: upsertError } = await insforge.database
+                    .from('app_configs')
+                    .upsert([update], { onConflict: 'key' });
+
+                if (upsertError) {
+                    setError(upsertError.message);
+                    return;
+                }
+            }
+
+            setFlash({ success: 'Configuración guardada exitosamente.' });
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setProcessing(false);
         }
     };
 
+    const geminiConfigured = !!configs.GEMINI_API_KEY;
+    const linkedinConfigured = !!configs.LINKEDIN_CLIENT_ID && !!configs.LINKEDIN_CLIENT_SECRET;
+
+    if (loading) {
+        return (
+            <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Cargando...</h2>}>
+                <div className="py-12">
+                    <div className="mx-auto max-w-7xl px-4 text-center text-gray-500">Cargando configuración...</div>
+                </div>
+            </AuthenticatedLayout>
+        );
+    }
+
     return (
         <AuthenticatedLayout
-            header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800">Configuración</h2>
-            }
+            header={<h2 className="text-xl font-semibold leading-tight text-gray-800">Configuración</h2>}
         >
             <Head title="Configuración" />
 
@@ -38,17 +104,16 @@ export default function Settings() {
                     {flash?.success && (
                         <div className="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800">{flash.success}</div>
                     )}
-                    {flash?.error && (
-                        <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800">{flash.error}</div>
+                    {error && (
+                        <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800">{error}</div>
                     )}
 
-                    <form onSubmit={submit}>
-                        {/* Gemini Settings */}
+                    <form onSubmit={handleSubmit}>
                         <div className="mb-8 overflow-hidden bg-white shadow sm:rounded-lg">
                             <div className="border-b border-gray-200 px-6 py-4">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-lg font-medium text-gray-900">Gemini AI</h3>
-                                    {gemini_configured ? (
+                                    {geminiConfigured ? (
                                         <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">
                                             <span className="mr-1.5 h-2 w-2 rounded-full bg-green-500"></span>
                                             Conectado
@@ -67,50 +132,30 @@ export default function Settings() {
                                     <TextInput
                                         id="gemini_key"
                                         type="password"
-                                        value={form.data.gemini_key}
-                                        onChange={(e) => form.setData('gemini_key', e.target.value)}
+                                        value={formData.gemini_key}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, gemini_key: e.target.value }))}
                                         className="mt-1 block w-full"
                                         placeholder="Ingresa tu API key de Gemini"
                                     />
-                                    <InputError message={form.errors.gemini_key} className="mt-2" />
                                 </div>
                             </div>
                         </div>
 
-                        {/* LinkedIn Settings */}
                         <div className="mb-8 overflow-hidden bg-white shadow sm:rounded-lg">
                             <div className="border-b border-gray-200 px-6 py-4">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-lg font-medium text-gray-900">LinkedIn</h3>
                                     <div className="flex items-center gap-3">
-                                        {linkedin_connected ? (
+                                        {linkedinConfigured ? (
                                             <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">
                                                 <span className="mr-1.5 h-2 w-2 rounded-full bg-green-500"></span>
-                                                Conectado
+                                                Configurado
                                             </span>
                                         ) : (
                                             <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-800">
                                                 <span className="mr-1.5 h-2 w-2 rounded-full bg-red-500"></span>
-                                                Desconectado
+                                                No configurado
                                             </span>
-                                        )}
-                                        {linkedin_oauth_url && (
-                                            <button
-                                                type="button"
-                                                onClick={handleConnectLinkedIn}
-                                                className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                                            >
-                                                Conectar LinkedIn
-                                            </button>
-                                        )}
-                                        {linkedin_connected && (
-                                            <button
-                                                type="button"
-                                                onClick={() => router.post(route('publisher.linkedin-disconnect'))}
-                                                className="inline-flex items-center rounded-md bg-red-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                                            >
-                                                Desconectar
-                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -121,12 +166,11 @@ export default function Settings() {
                                     <TextInput
                                         id="linkedin_client_id"
                                         type="text"
-                                        value={form.data.linkedin_client_id}
-                                        onChange={(e) => form.setData('linkedin_client_id', e.target.value)}
+                                        value={formData.linkedin_client_id}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, linkedin_client_id: e.target.value }))}
                                         className="mt-1 block w-full"
                                         placeholder="Client ID de la app de LinkedIn"
                                     />
-                                    <InputError message={form.errors.linkedin_client_id} className="mt-2" />
                                 </div>
 
                                 <div className="mb-4">
@@ -134,20 +178,18 @@ export default function Settings() {
                                     <TextInput
                                         id="linkedin_client_secret"
                                         type="password"
-                                        value={form.data.linkedin_client_secret}
-                                        onChange={(e) => form.setData('linkedin_client_secret', e.target.value)}
+                                        value={formData.linkedin_client_secret}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, linkedin_client_secret: e.target.value }))}
                                         className="mt-1 block w-full"
                                         placeholder="Client Secret de la app de LinkedIn"
                                     />
-                                    <InputError message={form.errors.linkedin_client_secret} className="mt-2" />
                                 </div>
                             </div>
                         </div>
 
-                        {/* Save Button */}
                         <div className="flex items-center justify-end">
-                            <PrimaryButton disabled={form.processing}>
-                                Guardar Configuración
+                            <PrimaryButton disabled={processing}>
+                                {processing ? 'Guardando...' : 'Guardar Configuración'}
                             </PrimaryButton>
                         </div>
                     </form>

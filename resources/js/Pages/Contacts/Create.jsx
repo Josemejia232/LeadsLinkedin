@@ -1,25 +1,52 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
+import { useState } from 'react';
+import { insforge } from '@/lib/insforge';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
 import PrimaryButton from '@/Components/PrimaryButton';
 
 export default function ContactsCreate() {
-    const { flash } = usePage().props;
-
-    const form = useForm({
+    const [formData, setFormData] = useState({
         name: '',
-        company_name: '',
+        company: '',
         phone: '',
         email: '',
-        city: '',
         notes: '',
     });
+    const [errors, setErrors] = useState({});
+    const [processing, setProcessing] = useState(false);
+    const [flash, setFlash] = useState(null);
 
-    const submit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        form.post(route('contacts.store'));
+        setProcessing(true);
+        setErrors({});
+
+        try {
+            const { data, error } = await insforge.database
+                .from('contacts')
+                .insert([{
+                    name: formData.name,
+                    company: formData.company || null,
+                    phone: formData.phone || null,
+                    email: formData.email || null,
+                    notes: formData.notes || null,
+                }])
+                .select();
+
+            if (error) {
+                setErrors({ submit: error.message });
+            } else {
+                setFlash({ success: 'Contacto creado exitosamente.' });
+                window.location.href = route('contacts.index');
+            }
+        } catch (err) {
+            setErrors({ submit: err.message });
+        } finally {
+            setProcessing(false);
+        }
     };
 
     return (
@@ -29,7 +56,7 @@ export default function ContactsCreate() {
                     <h2 className="text-xl font-semibold leading-tight text-gray-800">Crear Contacto</h2>
                     <Link
                         href={route('contacts.index')}
-                        className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                        className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-700 shadow-sm transition hover:bg-gray-50"
                     >
                         Volver
                     </Link>
@@ -43,34 +70,37 @@ export default function ContactsCreate() {
                     {flash?.success && (
                         <div className="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800">{flash.success}</div>
                     )}
+                    {errors.submit && (
+                        <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800">{errors.submit}</div>
+                    )}
 
                     <div className="overflow-hidden bg-white shadow sm:rounded-lg">
-                        <form onSubmit={submit} className="p-6">
+                        <form onSubmit={handleSubmit} className="p-6">
                             <div className="mb-6">
                                 <InputLabel htmlFor="name" value="Nombre" />
                                 <TextInput
                                     id="name"
                                     type="text"
-                                    value={form.data.name}
-                                    onChange={(e) => form.setData('name', e.target.value)}
+                                    value={formData.name}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                                     className="mt-1 block w-full"
                                     required
                                     placeholder="Nombre completo"
                                 />
-                                <InputError message={form.errors.name} className="mt-2" />
+                                <InputError message={errors.name} className="mt-2" />
                             </div>
 
                             <div className="mb-6">
-                                <InputLabel htmlFor="company_name" value="Empresa" />
+                                <InputLabel htmlFor="company" value="Empresa" />
                                 <TextInput
-                                    id="company_name"
+                                    id="company"
                                     type="text"
-                                    value={form.data.company_name}
-                                    onChange={(e) => form.setData('company_name', e.target.value)}
+                                    value={formData.company}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
                                     className="mt-1 block w-full"
                                     placeholder="Nombre de la empresa"
                                 />
-                                <InputError message={form.errors.company_name} className="mt-2" />
+                                <InputError message={errors.company} className="mt-2" />
                             </div>
 
                             <div className="mb-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -79,12 +109,12 @@ export default function ContactsCreate() {
                                     <TextInput
                                         id="phone"
                                         type="text"
-                                        value={form.data.phone}
-                                        onChange={(e) => form.setData('phone', e.target.value)}
+                                        value={formData.phone}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                                         className="mt-1 block w-full"
                                         placeholder="+52 555 123 4567"
                                     />
-                                    <InputError message={form.errors.phone} className="mt-2" />
+                                    <InputError message={errors.phone} className="mt-2" />
                                 </div>
 
                                 <div>
@@ -92,44 +122,31 @@ export default function ContactsCreate() {
                                     <TextInput
                                         id="email"
                                         type="email"
-                                        value={form.data.email}
-                                        onChange={(e) => form.setData('email', e.target.value)}
+                                        value={formData.email}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                                         className="mt-1 block w-full"
                                         placeholder="contacto@ejemplo.com"
                                     />
-                                    <InputError message={form.errors.email} className="mt-2" />
+                                    <InputError message={errors.email} className="mt-2" />
                                 </div>
-                            </div>
-
-                            <div className="mb-6">
-                                <InputLabel htmlFor="city" value="Ciudad" />
-                                <TextInput
-                                    id="city"
-                                    type="text"
-                                    value={form.data.city}
-                                    onChange={(e) => form.setData('city', e.target.value)}
-                                    className="mt-1 block w-full"
-                                    placeholder="Ciudad"
-                                />
-                                <InputError message={form.errors.city} className="mt-2" />
                             </div>
 
                             <div className="mb-6">
                                 <InputLabel htmlFor="notes" value="Notas" />
                                 <textarea
                                     id="notes"
-                                    value={form.data.notes}
-                                    onChange={(e) => form.setData('notes', e.target.value)}
+                                    value={formData.notes}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                     rows="3"
                                     placeholder="Notas adicionales..."
                                 />
-                                <InputError message={form.errors.notes} className="mt-2" />
+                                <InputError message={errors.notes} className="mt-2" />
                             </div>
 
                             <div className="flex items-center justify-end">
-                                <PrimaryButton disabled={form.processing}>
-                                    Crear Contacto
+                                <PrimaryButton disabled={processing}>
+                                    {processing ? 'Creando...' : 'Crear Contacto'}
                                 </PrimaryButton>
                             </div>
                         </form>

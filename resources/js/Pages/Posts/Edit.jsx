@@ -1,10 +1,11 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
+import { useState, useRef, useEffect } from 'react';
+import { insforge } from '@/lib/insforge';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
 import PrimaryButton from '@/Components/PrimaryButton';
-import { useState, useRef } from 'react';
 
 const STRATEGIC_HOURS_MAP = {
     1: [10],
@@ -37,66 +38,171 @@ function buildHours(strategic) {
     return hours;
 }
 
-export default function PostsEdit() {
-    const { post, scheduledPost, flash } = usePage().props;
-    const fileInputRef = useRef(null);
+export default function PostsEdit({ postId }) {
+    const [post, setPost] = useState(null);
+    const [scheduledPost, setScheduledPost] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [flash, setFlash] = useState(null);
     const [uploading, setUploading] = useState(false);
+    const [processing, setProcessing] = useState(false);
+    const [scheduleProcessing, setScheduleProcessing] = useState(false);
+    const fileInputRef = useRef(null);
+
+    const [formData, setFormData] = useState({
+        title: '',
+        text_content: '',
+        hashtags: '',
+        call_to_action: '',
+    });
+    const [scheduledDate, setScheduledDate] = useState('');
+
+    useEffect(() => {
+        async function fetchData() {
+            try {
+                const { data: postData, error: postError } = await insforge.database
+                    .from('day_posts')
+                    .select('*')
+                    .eq('id', postId)
+                    .single();
+
+                if (postError) {
+                    setError(postError.message);
+                    return;
+                }
+
+                setPost(postData);
+                setFormData({
+                    title: postData.title || '',
+                    text_content: postData.text_content || '',
+                    hashtags: postData.hashtags || '',
+                    call_to_action: postData.call_to_action || '',
+                });
+
+                const { data: schedData } = await insforge.database
+                    .from('scheduled_posts')
+                    .select('*')
+                    .eq('day_post_id', postId)
+                    .single();
+
+                if (schedData) {
+                    setScheduledPost(schedData);
+                    setScheduledDate(new Date(schedData.scheduled_date).toISOString().slice(0, 16));
+                }
+            } catch (err) {
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchData();
+    }, [postId]);
 
     const postDate = post?.date ? new Date(post.date).toISOString().split('T')[0] : '';
     const strategicHours = getStrategicHours(post?.date);
     const allHours = buildHours(strategicHours);
     const currentHour = scheduledPost?.scheduled_date ? new Date(scheduledPost.scheduled_date).getHours() : 10;
 
-    const form = useForm({
-        title: post?.title || '',
-        text_content: post?.text_content || '',
-        hashtags: post?.hashtags || '',
-        call_to_action: post?.call_to_action || '',
-    });
-
-    const scheduleForm = useForm({
-        scheduled_date: scheduledPost?.scheduled_date
-            ? new Date(scheduledPost.scheduled_date).toISOString().slice(0, 16)
-            : postDate + 'T10:00',
-    });
-
-    const submit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        form.put(route('posts.update', post.id));
+        setProcessing(true);
+        setError(null);
+
+        try {
+            const { error: updateError } = await insforge.database
+                .from('day_posts')
+                .update({
+                    title: formData.title,
+                    text_content: formData.text_content,
+                    hashtags: formData.hashtags,
+                    call_to_action: formData.call_to_action,
+                })
+                .eq('id', postId);
+
+            if (updateError) {
+                setError(updateError.message);
+            } else {
+                setFlash({ success: 'Publicación actualizada.' });
+            }
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setProcessing(false);
+        }
     };
 
-    const submitSchedule = () => {
-        scheduleForm.post(route('posts.update-schedule', post.id), {
-            preserveScroll: true,
-        });
+    const handleScheduleSubmit = async () => {
+        setScheduleProcessing(true);
+        setError(null);
+
+        try {
+            const { error: schedError } = await insforge.database
+                .from('scheduled_posts')
+                .upsert([{
+                    day_post_id: postId,
+                    scheduled_date: new Date(scheduledDate).toISOString(),
+                    status: 'scheduled',
+                }]);
+
+            if (schedError) {
+                setError(schedError.message);
+            } else {
+                setScheduledPost({ scheduled_date: scheduledDate, status: 'scheduled' });
+                setFlash({ success: 'Horario actualizado.' });
+            }
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setScheduleProcessing(false);
+        }
     };
 
     const handleHourChange = (hour) => {
         const newDate = postDate + 'T' + formatHour(hour);
-        scheduleForm.setData('scheduled_date', newDate);
+        setScheduledDate(newDate);
     };
 
-    const handleImageUpload = (e) => {
+    const handleImageUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         setUploading(true);
-        const formData = new FormData();
-        formData.append('image', file);
+        try {
+            const { data, error: uploadError } = await insforge.storage
+                .from('posts')
+                .upload(`${postId}/${file.name}`, file);
 
-        fetch(route('posts.upload-image', post.id), {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            body: formData,
-        })
-        .then((res) => {
-            if (res.ok) window.location.reload();
-        })
-        .finally(() => setUploading(false));
+            if (uploadError) {
+                setError(uploadError.message);
+            } else {
+                const { data: urlData } = insforge.storage
+                    .from('posts')
+                    .getPublicUrl(`${postId}/${file.name}`);
+
+                await insforge.database
+                    .from('day_posts')
+                    .update({ image_url: urlData.publicUrl })
+                    .eq('id', postId);
+
+                setPost(prev => ({ ...prev, image_url: urlData.publicUrl }));
+            }
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setUploading(false);
+        }
     };
+
+    if (loading) {
+        return (
+            <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Cargando...</h2>}>
+                <div className="py-12">
+                    <div className="mx-auto max-w-7xl px-4 text-center text-gray-500">Cargando publicación...</div>
+                </div>
+            </AuthenticatedLayout>
+        );
+    }
 
     return (
         <AuthenticatedLayout
@@ -105,7 +211,7 @@ export default function PostsEdit() {
                     <h2 className="text-xl font-semibold leading-tight text-gray-800">Editar Publicación</h2>
                     <Link
                         href={route('plans.show', post.plan_id)}
-                        className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                        className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-700 shadow-sm transition hover:bg-gray-50"
                     >
                         Volver al Plan
                     </Link>
@@ -119,20 +225,22 @@ export default function PostsEdit() {
                     {flash?.success && (
                         <div className="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800">{flash.success}</div>
                     )}
+                    {error && (
+                        <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800">{error}</div>
+                    )}
 
                     <div className="overflow-hidden bg-white shadow sm:rounded-lg">
-                        <form onSubmit={submit} className="p-6">
+                        <form onSubmit={handleSubmit} className="p-6">
                             <div className="mb-6">
                                 <InputLabel htmlFor="title" value="Título" />
                                 <TextInput
                                     id="title"
                                     type="text"
-                                    value={form.data.title}
-                                    onChange={(e) => form.setData('title', e.target.value)}
+                                    value={formData.title}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                                     className="mt-1 block w-full"
                                     required
                                 />
-                                <InputError message={form.errors.title} className="mt-2" />
                             </div>
 
                             <div className="mb-6">
@@ -140,11 +248,10 @@ export default function PostsEdit() {
                                 <textarea
                                     id="text_content"
                                     rows={12}
-                                    value={form.data.text_content}
-                                    onChange={(e) => form.setData('text_content', e.target.value)}
+                                    value={formData.text_content}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, text_content: e.target.value }))}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                                 />
-                                <InputError message={form.errors.text_content} className="mt-2" />
                             </div>
 
                             <div className="mb-6">
@@ -152,12 +259,11 @@ export default function PostsEdit() {
                                 <TextInput
                                     id="hashtags"
                                     type="text"
-                                    value={form.data.hashtags}
-                                    onChange={(e) => form.setData('hashtags', e.target.value)}
+                                    value={formData.hashtags}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, hashtags: e.target.value }))}
                                     className="mt-1 block w-full"
                                     placeholder="#hashtag1 #hashtag2"
                                 />
-                                <InputError message={form.errors.hashtags} className="mt-2" />
                             </div>
 
                             <div className="mb-6">
@@ -165,11 +271,10 @@ export default function PostsEdit() {
                                 <textarea
                                     id="call_to_action"
                                     rows={3}
-                                    value={form.data.call_to_action}
-                                    onChange={(e) => form.setData('call_to_action', e.target.value)}
+                                    value={formData.call_to_action}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, call_to_action: e.target.value }))}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                                 />
-                                <InputError message={form.errors.call_to_action} className="mt-2" />
                             </div>
 
                             {scheduledPost && (
@@ -189,9 +294,6 @@ export default function PostsEdit() {
                                             {scheduledPost.status === 'scheduled' ? 'Programado' : scheduledPost.status === 'published' ? 'Publicado' : scheduledPost.status}
                                         </span>
                                     </div>
-                                    {scheduleForm.errors.scheduled_date && (
-                                        <div className="mb-2 text-xs text-red-600">{scheduleForm.errors.scheduled_date}</div>
-                                    )}
                                     <div className="flex items-end gap-3">
                                         <div className="flex-1">
                                             <InputLabel htmlFor="scheduled_hour" value="Hora" />
@@ -210,19 +312,19 @@ export default function PostsEdit() {
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={submitSchedule}
-                                            disabled={scheduleForm.processing}
+                                            onClick={handleScheduleSubmit}
+                                            disabled={scheduleProcessing}
                                             className="inline-flex items-center rounded-md border border-transparent bg-purple-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-25"
                                         >
-                                            {scheduleForm.processing ? 'Guardando...' : 'Actualizar'}
+                                            {scheduleProcessing ? 'Guardando...' : 'Actualizar'}
                                         </button>
                                     </div>
                                 </div>
                             )}
 
                             <div className="flex items-center justify-end">
-                                <PrimaryButton disabled={form.processing}>
-                                    Actualizar Publicación
+                                <PrimaryButton disabled={processing}>
+                                    {processing ? 'Actualizando...' : 'Actualizar Publicación'}
                                 </PrimaryButton>
                             </div>
                         </form>
