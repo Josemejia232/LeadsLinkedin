@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: leadslinkedin
+    runtime: php
+    phpVersion: '8.4'
+    buildCommand: composer install --no-dev && npm ci && npm run build
+    startCommand: php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
