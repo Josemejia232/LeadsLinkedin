@@ -39,6 +39,10 @@ class GeminiService
                     ],
                 ]);
 
+            if ($response->failed()) {
+                return '';
+            }
+
             $data = $response->json();
 
             return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';

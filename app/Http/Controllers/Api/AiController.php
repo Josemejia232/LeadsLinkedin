@@ -119,6 +119,9 @@ class AiController extends Controller
             $updated = 0;
 
             foreach ($posts as $post) {
+                if (!empty($post['text_content'])) {
+                    continue;
+                }
                 try {
                     $content = $gemini->generatePostContent(
                         $plan['topic_name'],
@@ -128,13 +131,15 @@ class AiController extends Controller
                         ''
                     );
 
-                    $this->patchRecord('day_posts', $post['id'], [
-                        'text_content' => $content['text'] ?? '',
-                        'hashtags' => $content['hashtags'] ?? '',
-                        'call_to_action' => $content['cta'] ?? '',
-                        'status' => 'generated',
-                    ]);
-                    $updated++;
+                    if (!empty($content['text'])) {
+                        $this->patchRecord('day_posts', $post['id'], [
+                            'text_content' => $content['text'],
+                            'hashtags' => $content['hashtags'] ?? '',
+                            'call_to_action' => $content['cta'] ?? '',
+                            'status' => 'generated',
+                        ]);
+                        $updated++;
+                    }
                 } catch (\Throwable $e) {
                     continue;
                 }
