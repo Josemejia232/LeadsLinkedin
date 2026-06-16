@@ -170,22 +170,29 @@ export default function PlansShow({ planId }) {
     };
 
     const toggleExpand = async (postId) => {
+        const wasExpanded = expandedPostId === postId;
         setExpandedPostId(prev => prev === postId ? null : postId);
 
-        if (expandedPostId !== postId) {
+        if (!wasExpanded) {
             const post = posts.find(p => p.id === postId);
-            if (post && !post.call_to_action && !post.hashtags && post.title && post.title !== '') {
-                try {
-                    const res = await fetch('/api/ai/generate-missing-fields?post_id=' + postId);
-                    const result = await res.json();
-                    if (result.call_to_action || result.hashtags) {
+            if (post && post.title) {
+                const missingCta = !post.call_to_action;
+                const missingHashtags = !post.hashtags;
+                if (missingCta || missingHashtags) {
+                    try {
+                        const res = await fetch('/api/ai/generate-missing-fields?post_id=' + postId);
+                        const result = await res.json();
                         setPosts(prev => prev.map(p =>
                             p.id === postId
-                                ? { ...p, call_to_action: result.call_to_action || p.call_to_action, hashtags: result.hashtags || p.hashtags }
+                                ? {
+                                    ...p,
+                                    call_to_action: result.call_to_action || p.call_to_action,
+                                    hashtags: result.hashtags || p.hashtags,
+                                }
                                 : p
                         ));
+                    } catch (err) {
                     }
-                } catch (err) {
                 }
             }
         }

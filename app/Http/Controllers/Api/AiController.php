@@ -165,20 +165,26 @@ class AiController extends Controller
             }
 
             $plan = $this->fetchPlan($post['plan_id']);
+            $topic = $plan['topic_name'] ?? $post['title'] ?? '';
+            $update = [];
+
+            if (empty($post['text_content']) && !empty($post['title'])) {
+                return response()->json(['error' => 'No content to generate from, generate full content first'], 400);
+            }
 
             $geminiKey = $this->getConfig('GEMINI_API_KEY');
-            $update = [];
-            $needsGeneration = false;
 
-            $topic = $plan['topic_name'] ?? $post['title'] ?? '';
-
-            if (empty($post['call_to_action']) && empty($post['hashtags']) && !empty($post['title'])) {
-                $needsGeneration = true;
+            if (empty($post['call_to_action']) || empty($post['hashtags'])) {
                 if ($geminiKey) {
                     $gemini = app(GeminiService::class)->setApiKey($geminiKey);
                     $result = $gemini->generateCtaAndHashtags($topic, $post['title']);
-                    $update['call_to_action'] = $result['cta'] ?? '';
-                    $update['hashtags'] = $result['hashtags'] ?? '';
+
+                    if (empty($post['call_to_action'])) {
+                        $update['call_to_action'] = $result['cta'] ?? '';
+                    }
+                    if (empty($post['hashtags'])) {
+                        $update['hashtags'] = $result['hashtags'] ?? '';
+                    }
                 }
             }
 
@@ -208,10 +214,8 @@ class AiController extends Controller
             $response = Http::withHeaders([
                 'apikey' => $this->adminKey,
                 'Authorization' => 'Bearer ' . $this->adminKey,
-                'Content-Type' => $file->getMimeType(),
-            ])->withBody(
-                file_get_contents($file->getRealPath()),
-                $file->getMimeType()
+            ])->attach(
+                'file', file_get_contents($file->getRealPath()), $key
             )->put($this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key));
 
             if ($response->failed()) {
