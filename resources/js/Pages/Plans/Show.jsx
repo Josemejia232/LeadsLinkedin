@@ -11,7 +11,8 @@ export default function PlansShow({ planId }) {
     const [flash, setFlash] = useState(null);
     const [scheduling, setScheduling] = useState(null);
     const [scheduleDate, setScheduleDate] = useState('');
-    const [generating, setGenerating] = useState(false);
+    const [generatingTitles, setGeneratingTitles] = useState(false);
+    const [generatingContent, setGeneratingContent] = useState(false);
 
     const months = [
         'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -57,16 +58,32 @@ export default function PlansShow({ planId }) {
         fetchData();
     }, [planId]);
 
-    const handleGenerateAll = async () => {
-        if (!confirm('¿Generar contenido con IA para todos los posts pendientes?')) return;
-        setGenerating(true);
+    const handleGenerateTitles = async () => {
+        if (!confirm('¿Generar títulos de posts con IA?')) return;
+        setGeneratingTitles(true);
         setError(null);
         try {
-            const res = await fetch('/api/ai/generate-plan-content', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content },
-                body: JSON.stringify({ plan_id: planId }),
-            });
+            const res = await fetch('/api/ai/generate-titles?plan_id=' + planId);
+            const result = await res.json();
+            if (result.success) {
+                setFlash({ success: `${result.created} títulos generados exitosamente.` });
+                fetchData();
+            } else {
+                setError(result.error || 'Error al generar títulos');
+            }
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setGeneratingTitles(false);
+        }
+    };
+
+    const handleGenerateContent = async () => {
+        if (!confirm('¿Generar contenido con IA para todos los posts pendientes?')) return;
+        setGeneratingContent(true);
+        setError(null);
+        try {
+            const res = await fetch('/api/ai/generate-plan-content?plan_id=' + planId);
             const result = await res.json();
             if (result.success) {
                 setFlash({ success: `Contenido generado para ${result.generated} de ${result.total} posts.` });
@@ -77,7 +94,7 @@ export default function PlansShow({ planId }) {
         } catch (err) {
             setError(err.message);
         } finally {
-            setGenerating(false);
+            setGeneratingContent(false);
         }
     };
 
@@ -185,13 +202,24 @@ export default function PlansShow({ planId }) {
                         </p>
                     </div>
                     <div className="flex gap-2">
-                        <button
-                            onClick={handleGenerateAll}
-                            disabled={generating}
-                            className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white shadow-sm transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
-                        >
-                            {generating ? 'Generando...' : 'Generar con IA'}
-                        </button>
+                        {posts.length === 0 && (
+                            <button
+                                onClick={handleGenerateTitles}
+                                disabled={generatingTitles}
+                                className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white shadow-sm transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+                            >
+                                {generatingTitles ? 'Generando...' : 'Generar Títulos'}
+                            </button>
+                        )}
+                        {posts.length > 0 && (
+                            <button
+                                onClick={handleGenerateContent}
+                                disabled={generatingContent}
+                                className="inline-flex items-center rounded-md bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white shadow-sm transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50"
+                            >
+                                {generatingContent ? 'Generando...' : 'Generar con IA'}
+                            </button>
+                        )}
                         <Link
                             href={route('plans.edit', plan.id)}
                             className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-700 shadow-sm transition hover:bg-gray-50"
