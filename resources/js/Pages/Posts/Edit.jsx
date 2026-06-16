@@ -163,22 +163,47 @@ export default function PostsEdit({ postId }) {
         setScheduledDate(newDate);
     };
 
+    function convertToWebP(file, quality = 0.8) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        const name = file.name.replace(/\.[^.]+$/, '') + '.webp';
+                        resolve(new File([blob], name, { type: 'image/webp' }));
+                    } else {
+                        reject(new Error('Error al convertir a WebP'));
+                    }
+                }, 'image/webp', quality);
+            };
+            img.onerror = () => reject(new Error('Error al cargar la imagen'));
+            img.src = URL.createObjectURL(file);
+        });
+    }
+
     const handleImageUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         setUploading(true);
         try {
+            const webpFile = await convertToWebP(file);
+
             const { data, error: uploadError } = await insforge.storage
                 .from('posts')
-                .upload(`${postId}/${file.name}`, file);
+                .upload(`${postId}/${webpFile.name}`, webpFile);
 
             if (uploadError) {
                 setError(uploadError.message);
             } else {
                 const { data: urlData } = insforge.storage
                     .from('posts')
-                    .getPublicUrl(`${postId}/${file.name}`);
+                    .getPublicUrl(`${postId}/${webpFile.name}`);
 
                 await insforge.database
                     .from('day_posts')
@@ -331,7 +356,7 @@ export default function PostsEdit({ postId }) {
 
                         <div className="border-t border-gray-200 p-6">
                             <InputLabel value="Imagen del Post" />
-                            <p className="mt-1 text-xs text-gray-500">Formatos: JPG, PNG, GIF, WebP. Máximo 5 MB.</p>
+                            <p className="mt-1 text-xs text-gray-500">Se convertirá automáticamente a WebP para optimizar peso.</p>
 
                             <input
                                 ref={fileInputRef}
