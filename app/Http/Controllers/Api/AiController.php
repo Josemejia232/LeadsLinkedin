@@ -61,7 +61,7 @@ class AiController extends Controller
                         $plan['keywords'] ?? '',
                         $count
                     );
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     $titles = [];
                 }
             }
@@ -89,7 +89,7 @@ class AiController extends Controller
                 'success' => true,
                 'created' => $created,
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
@@ -134,7 +134,7 @@ class AiController extends Controller
                         'status' => 'generated',
                     ]);
                     $updated++;
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     continue;
                 }
             }
@@ -144,7 +144,7 @@ class AiController extends Controller
                 'generated' => $updated,
                 'total' => count($posts),
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
@@ -175,28 +175,38 @@ class AiController extends Controller
         if (!empty($params)) {
             $url .= '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
         }
-        $response = Http::withHeaders([
-            'apikey' => $this->anonKey,
-            'Authorization' => 'Bearer ' . $this->anonKey,
-        ])->get($url);
-        return $response->json() ?? [];
+        try {
+            $response = Http::withHeaders([
+                'apikey' => $this->anonKey,
+                'Authorization' => 'Bearer ' . $this->anonKey,
+            ])->get($url);
+            return $response->json() ?? [];
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     private function createPost(array $data): void
     {
-        Http::withHeaders([
-            'apikey' => $this->anonKey,
-            'Authorization' => 'Bearer ' . $this->anonKey,
-        ])->post($this->baseUrl . '/api/database/records/day_posts', [$data]);
+        try {
+            Http::withHeaders([
+                'apikey' => $this->anonKey,
+                'Authorization' => 'Bearer ' . $this->anonKey,
+            ])->post($this->baseUrl . '/api/database/records/day_posts', [$data]);
+        } catch (\Throwable $e) {
+        }
     }
 
     private function patchRecord(string $table, int $id, array $data): void
     {
-        Http::withHeaders([
-            'apikey' => $this->anonKey,
-            'Authorization' => 'Bearer ' . $this->anonKey,
-            'Prefer' => 'return=minimal',
-        ])->patch($this->baseUrl . '/api/database/records/' . $table . '?id=eq.' . $id, $data);
+        try {
+            Http::withHeaders([
+                'apikey' => $this->anonKey,
+                'Authorization' => 'Bearer ' . $this->anonKey,
+                'Prefer' => 'return=minimal',
+            ])->patch($this->baseUrl . '/api/database/records/' . $table . '?id=eq.' . $id, $data);
+        } catch (\Throwable $e) {
+        }
     }
 
     private function getWeekdays(int $year, int $month): array

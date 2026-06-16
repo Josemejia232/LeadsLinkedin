@@ -36,23 +36,30 @@ PROMPT;
 
     public function generate(array $contents, float $temperature = 0.8, int $maxTokens = 4096, ?string $apiKey = null): string
     {
-        $key = $apiKey ?? $this->apiKey ?? AppConfig::get('GEMINI_API_KEY');
-        $response = Http::timeout(60)
-            ->withoutVerifying()
-            ->post(self::API_URL . '?key=' . $key, [
-                'system_instruction' => [
-                    'parts' => [['text' => self::LINKEDIN_SYSTEM_PROMPT]],
-                ],
-                'contents' => $contents,
-                'generationConfig' => [
-                    'temperature' => $temperature,
-                    'maxOutputTokens' => $maxTokens,
-                ],
-            ]);
+        try {
+            $key = $apiKey ?? $this->apiKey ?? AppConfig::get('GEMINI_API_KEY');
+            if (!$key) {
+                return '';
+            }
+            $response = Http::timeout(60)
+                ->withoutVerifying()
+                ->post(self::API_URL . '?key=' . $key, [
+                    'system_instruction' => [
+                        'parts' => [['text' => self::LINKEDIN_SYSTEM_PROMPT]],
+                    ],
+                    'contents' => $contents,
+                    'generationConfig' => [
+                        'temperature' => $temperature,
+                        'maxOutputTokens' => $maxTokens,
+                    ],
+                ]);
 
-        $data = $response->json();
+            $data = $response->json();
 
-        return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+            return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        } catch (\Throwable $e) {
+            return '';
+        }
     }
 
     public function generatePostContent(
