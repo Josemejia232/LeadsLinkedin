@@ -9,14 +9,6 @@ class GeminiService
 {
     private const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
-    private ?string $apiKey = null;
-
-    public function setApiKey(?string $apiKey): self
-    {
-        $this->apiKey = $apiKey;
-        return $this;
-    }
-
     private const LINKEDIN_SYSTEM_PROMPT = <<<'PROMPT'
 Eres un experto en marketing de contenidos B2B para LinkedIn. SIEMPRE sigues esta estructura universal para cada publicación:
 
@@ -33,6 +25,14 @@ REGLAS:
 - Incluye números específicos cuando sea posible
 - El texto total debe tener entre 100 y 300 palabras
 PROMPT;
+
+    private ?string $apiKey = null;
+
+    public function setApiKey(?string $apiKey): self
+    {
+        $this->apiKey = $apiKey;
+        return $this;
+    }
 
     public function generate(array $contents, float $temperature = 0.8, int $maxTokens = 4096, ?string $apiKey = null): string
     {
