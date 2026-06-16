@@ -72,10 +72,19 @@ export default function PlansCreate() {
 
             if (error) {
                 setErrors({ submit: error.message });
-            } else {
-                setFlash({ success: 'Plan creado exitosamente.' });
-                window.location.href = route('plans.show', data[0].id);
+                return;
             }
+
+            const planId = data[0].id;
+
+            const titlesRes = await fetch('/api/ai/generate-titles?plan_id=' + planId);
+            const titlesResult = await titlesRes.json();
+
+            if (titlesResult.success) {
+                await fetch('/api/ai/generate-plan-content?plan_id=' + planId);
+            }
+
+            window.location.href = route('plans.show', planId);
         } catch (err) {
             setErrors({ submit: err.message });
         } finally {

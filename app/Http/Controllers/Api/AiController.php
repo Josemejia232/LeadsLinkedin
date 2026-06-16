@@ -36,11 +36,6 @@ class AiController extends Controller
             return response()->json(['error' => 'plan_id required'], 400);
         }
 
-        $geminiKey = $this->getConfig('GEMINI_API_KEY');
-        if (!$geminiKey) {
-            return response()->json(['error' => 'Gemini API key not configured'], 400);
-        }
-
         $plan = $this->fetchPlan($planId);
         if (!$plan) {
             return response()->json(['error' => 'Plan not found'], 404);
@@ -51,20 +46,25 @@ class AiController extends Controller
             return response()->json(['error' => 'Posts already exist for this plan'], 400);
         }
 
-        AppConfig::set('GEMINI_API_KEY', $geminiKey);
-        $gemini = app(GeminiService::class);
         $weekdays = $this->getWeekdays($plan['year'], $plan['month']);
         $count = min($plan['total_posts'] ?? 10, count($weekdays));
 
-        try {
-            $titles = $gemini->generatePostTitles(
-                $plan['topic_name'],
-                $plan['industry'] ?? '',
-                $plan['keywords'] ?? '',
-                $count
-            );
-        } catch (\Exception $e) {
-            $titles = [];
+        $geminiKey = $this->getConfig('GEMINI_API_KEY');
+        $titles = [];
+
+        if ($geminiKey) {
+            AppConfig::set('GEMINI_API_KEY', $geminiKey);
+            $gemini = app(GeminiService::class);
+            try {
+                $titles = $gemini->generatePostTitles(
+                    $plan['topic_name'],
+                    $plan['industry'] ?? '',
+                    $plan['keywords'] ?? '',
+                    $count
+                );
+            } catch (\Exception $e) {
+                $titles = [];
+            }
         }
 
         $created = 0;
@@ -99,14 +99,14 @@ class AiController extends Controller
             return response()->json(['error' => 'plan_id required'], 400);
         }
 
-        $geminiKey = $this->getConfig('GEMINI_API_KEY');
-        if (!$geminiKey) {
-            return response()->json(['error' => 'Gemini API key not configured'], 400);
-        }
-
         $plan = $this->fetchPlan($planId);
         if (!$plan) {
             return response()->json(['error' => 'Plan not found'], 404);
+        }
+
+        $geminiKey = $this->getConfig('GEMINI_API_KEY');
+        if (!$geminiKey) {
+            return response()->json(['success' => true, 'generated' => 0, 'total' => 0]);
         }
 
         $posts = $this->fetchPendingPosts($planId);
