@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { insforge } from '@/lib/insforge';
 
 export default function PlansShow({ planId }) {
@@ -13,6 +13,9 @@ export default function PlansShow({ planId }) {
     const [scheduleDate, setScheduleDate] = useState('');
     const [generatingTitles, setGeneratingTitles] = useState(false);
     const [generatingContent, setGeneratingContent] = useState(false);
+    const [expandedPostId, setExpandedPostId] = useState(null);
+    const [uploadingPostId, setUploadingPostId] = useState(null);
+    const fileInputRefs = useRef({});
 
     const months = [
         'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -166,6 +169,59 @@ export default function PlansShow({ planId }) {
         }
     };
 
+    const toggleExpand = (postId) => {
+        setExpandedPostId(prev => prev === postId ? null : postId);
+    };
+
+    const handleImageUpload = async (e, postId) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setUploadingPostId(postId);
+        try {
+            const img = new Image();
+            img.onload = async () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                canvas.toBlob(async (blob) => {
+                    if (!blob) { setUploadingPostId(null); return; }
+                    const name = file.name.replace(/\.[^.]+$/, '') + '.webp';
+                    const webpFile = new File([blob], name, { type: 'image/webp' });
+
+                    const { error: uploadError } = await insforge.storage
+                        .from('posts')
+                        .upload(`${postId}/${webpFile.name}`, webpFile);
+
+                    if (uploadError) {
+                        setError(uploadError.message);
+                    } else {
+                        const { data: urlData } = insforge.storage
+                            .from('posts')
+                            .getPublicUrl(`${postId}/${webpFile.name}`);
+
+                        await insforge.database
+                            .from('day_posts')
+                            .update({ image_url: urlData.publicUrl })
+                            .eq('id', postId);
+
+                        setPosts(prev => prev.map(p =>
+                            p.id === postId ? { ...p, image_url: urlData.publicUrl } : p
+                        ));
+                    }
+                    setUploadingPostId(null);
+                }, 'image/webp', 0.8);
+            };
+            img.onerror = () => { setUploadingPostId(null); setError('Error al cargar la imagen'); };
+            img.src = URL.createObjectURL(file);
+        } catch (err) {
+            setError(err.message);
+            setUploadingPostId(null);
+        }
+    };
+
     if (loading) {
         return (
             <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Cargando...</h2>}>
@@ -253,69 +309,154 @@ export default function PlansShow({ planId }) {
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 bg-white">
                                     {posts.map((post) => (
-                                        <tr key={post.id} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4 text-sm font-medium text-gray-900">{post.title}</td>
-                                            <td className="whitespace-nowrap px-6 py-4">{statusBadge(post.status)}</td>
-                                            <td className="whitespace-nowrap px-6 py-4 text-sm">
-                                                <div className="flex items-center gap-1">
+                                        <React.Fragment key={post.id}>
+                                            <tr className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 text-sm font-medium text-gray-900">
                                                     <button
-                                                        onClick={() => window.location.href = route('posts.edit', post.id)}
-                                                        title="Editar"
-                                                        className="rounded p-1.5 text-yellow-600 hover:bg-yellow-100"
+                                                        onClick={() => toggleExpand(post.id)}
+                                                        className="flex items-center gap-2 text-left w-full hover:text-indigo-600 transition"
                                                     >
-                                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                                                        <svg
+                                                            className={`h-4 w-4 shrink-0 text-gray-400 transition ${expandedPostId === post.id ? 'rotate-90' : ''}`}
+                                                            fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"
+                                                        >
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                                                        </svg>
+                                                        <span>{post.title}</span>
                                                     </button>
-                                                    {post.status === 'generated' && (
-                                                        scheduling === post.id ? (
-                                                            <div className="flex items-center gap-1">
-                                                                <input
-                                                                    type="datetime-local"
-                                                                    value={scheduleDate}
-                                                                    onChange={(e) => setScheduleDate(e.target.value)}
-                                                                    className="rounded border border-gray-300 px-1 py-0.5 text-xs"
-                                                                    min={new Date().toISOString().slice(0, 16)}
-                                                                />
+                                                </td>
+                                                <td className="whitespace-nowrap px-6 py-4">{statusBadge(post.status)}</td>
+                                                <td className="whitespace-nowrap px-6 py-4 text-sm">
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            onClick={() => window.location.href = route('posts.edit', post.id)}
+                                                            title="Editar"
+                                                            className="rounded p-1.5 text-yellow-600 hover:bg-yellow-100"
+                                                        >
+                                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                                                        </button>
+                                                        {post.status === 'generated' && (
+                                                            scheduling === post.id ? (
+                                                                <div className="flex items-center gap-1">
+                                                                    <input
+                                                                        type="datetime-local"
+                                                                        value={scheduleDate}
+                                                                        onChange={(e) => setScheduleDate(e.target.value)}
+                                                                        className="rounded border border-gray-300 px-1 py-0.5 text-xs"
+                                                                        min={new Date().toISOString().slice(0, 16)}
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => handleSchedulePost(post.id)}
+                                                                        title="Confirmar"
+                                                                        className={`rounded p-1.5 text-white ${scheduleDate ? 'bg-purple-600 hover:bg-purple-500' : 'bg-gray-300 cursor-not-allowed'}`}
+                                                                        disabled={!scheduleDate}
+                                                                    >
+                                                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => { setScheduling(null); setScheduleDate(''); }}
+                                                                        title="Cancelar"
+                                                                        className="rounded p-1.5 text-gray-600 hover:bg-gray-200"
+                                                                    >
+                                                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
                                                                 <button
-                                                                    onClick={() => handleSchedulePost(post.id)}
-                                                                    title="Confirmar"
-                                                                    className={`rounded p-1.5 text-white ${scheduleDate ? 'bg-purple-600 hover:bg-purple-500' : 'bg-gray-300 cursor-not-allowed'}`}
-                                                                    disabled={!scheduleDate}
+                                                                    onClick={() => {
+                                                                        const now = new Date();
+                                                                        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                                                                        setScheduleDate(now.toISOString().slice(0, 16));
+                                                                        setScheduling(post.id);
+                                                                    }}
+                                                                    title="Programar"
+                                                                    className="rounded p-1.5 text-purple-600 hover:bg-purple-100"
                                                                 >
-                                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>
                                                                 </button>
-                                                                <button
-                                                                    onClick={() => { setScheduling(null); setScheduleDate(''); }}
-                                                                    title="Cancelar"
-                                                                    className="rounded p-1.5 text-gray-600 hover:bg-gray-200"
-                                                                >
-                                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                                                                </button>
+                                                            )
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleDeletePost(post.id)}
+                                                            title="Eliminar"
+                                                            className="rounded p-1.5 text-red-600 hover:bg-red-100"
+                                                        >
+                                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {expandedPostId === post.id && (
+                                                <tr className="bg-gray-50">
+                                                    <td colSpan={3} className="px-6 py-4">
+                                                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                                            <div>
+                                                                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">Contenido</h4>
+                                                                <p className="whitespace-pre-wrap text-sm text-gray-700">{post.text_content || 'Sin contenido'}</p>
                                                             </div>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => {
-                                                                    const now = new Date();
-                                                                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-                                                                    setScheduleDate(now.toISOString().slice(0, 16));
-                                                                    setScheduling(post.id);
-                                                                }}
-                                                                title="Programar"
-                                                                className="rounded p-1.5 text-purple-600 hover:bg-purple-100"
-                                                            >
-                                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>
-                                                            </button>
-                                                        )
-                                                    )}
-                                                    <button
-                                                        onClick={() => handleDeletePost(post.id)}
-                                                        title="Eliminar"
-                                                        className="rounded p-1.5 text-red-600 hover:bg-red-100"
-                                                    >
-                                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                                            <div className="space-y-4">
+                                                                <div>
+                                                                    <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">Call to Action</h4>
+                                                                    <p className="text-sm text-gray-700">{post.call_to_action || 'Sin CTA'}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">Hashtags</h4>
+                                                                    <p className="text-sm text-indigo-600">{post.hashtags || 'Sin hashtags'}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">Imagen</h4>
+                                                                    <input
+                                                                        ref={el => fileInputRefs.current[post.id] = el}
+                                                                        type="file"
+                                                                        accept="image/jpeg,image/png,image/gif,image/webp"
+                                                                        onChange={(e) => handleImageUpload(e, post.id)}
+                                                                        className="hidden"
+                                                                    />
+                                                                    {post.image_url ? (
+                                                                        <div className="relative group inline-block">
+                                                                            <img
+                                                                                src={post.image_url}
+                                                                                alt="Post"
+                                                                                className="h-24 w-24 rounded-lg border border-gray-200 object-cover"
+                                                                            />
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => fileInputRefs.current[post.id]?.click()}
+                                                                                className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 text-white opacity-0 transition group-hover:opacity-100"
+                                                                                title="Cambiar imagen"
+                                                                            >
+                                                                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                                                                                </svg>
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => fileInputRefs.current[post.id]?.click()}
+                                                                            disabled={uploadingPostId === post.id}
+                                                                            className="flex items-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 transition hover:border-indigo-400 hover:text-indigo-600 disabled:opacity-50"
+                                                                            title="Subir imagen"
+                                                                        >
+                                                                            {uploadingPostId === post.id ? (
+                                                                                <span className="text-indigo-600">Subiendo...</span>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z" />
+                                                                                    </svg>
+                                                                                    Subir imagen
+                                                                                </>
+                                                                            )}
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     ))}
                                 </tbody>
                             </table>
