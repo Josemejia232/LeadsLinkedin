@@ -54,54 +54,48 @@ class GeminiService
         string $keywords,
         string $callToAction = ''
     ): array {
-        $prompt = "Crea una publicación para LinkedIn sobre este tema: {$topic}.
-Título sugerido: {$title}
-Tipo de contenido: {$postType}
+        $prompt = "Genera un post breve y directo para LinkedIn.
+
+Tema: {$topic}
+Título: {$title}
+Tipo: {$postType}
 Palabras clave: {$keywords}
 
-IMPORTANTE: El texto DEBE empezar con un HOOK impactante basado en el tema '{$topic}'. La primera línea es la más importante — debe generar curiosidad inmediata.
+Escribelo en 3 partes separadas por el delimitador '|||':
 
-Estructura obligatoria:
-- HOOK: Primera línea impactante
-- CUERPO: Desarrollo con valor (3-5 párrafos cortos)
-- CTA: Pregunta o invitación a la acción
-- HASHTAGS: 5-10 hashtags relevantes";
+PRIMERA PARTE ||| Hook (1 frase impactante que enganche)
+SEGUNDA PARTE ||| Contenido (2-3 párrafos cortos, directos, sin rodeos)
+TERCERA PARTE ||| 1. Un llamado a la acción (pregunta para generar comentarios) y 2. 5-10 hashtags relevantes en la misma línea
 
-        if ($callToAction) {
-            $prompt .= "\nCall to Action sugerido: {$callToAction}";
-        }
-
-        $prompt .= "\n\nDevuelve en este formato exacto:
-HOOK: [primera línea]
-TEXTO: [cuerpo completo del post]
-HASHTAGS: [hashtags separados por espacio]
-CTA: [llamada a la acción]";
+Ejemplo de formato esperado:
+¿Sabías que el 80% de las empresas ignoran esto?|||La mayoría comete el error de no medir sus métricas clave. Sin datos, no hay mejora posible. Empieza con una herramienta simple y revisa semanalmente.|||¿Tú ya revisas tus métricas? Comparte tu experiencia #Marketing #LinkedIn #Estrategia #Tips #Negocios";
 
         $response = $this->generate([
             ['parts' => [['text' => $prompt]]],
         ]);
 
-        $hook = '';
-        $text = '';
+        $parts = explode('|||', $response);
+        $text = trim($parts[0] ?? '');
+        $body = trim($parts[1] ?? '');
+        $last = trim($parts[2] ?? '');
+
+        if ($body) {
+            $text .= "\n\n" . $body;
+        }
+
         $hashtags = '';
         $cta = '';
 
-        if (preg_match('/HOOK:\s*(.*?)(?:\n|$)/s', $response, $m)) {
-            $hook = trim($m[1]);
-        }
-        if (preg_match('/TEXTO:\s*(.*?)(?:\n|$)($|HASHTAGS:)/s', $response, $m)) {
-            $text = trim($m[1]);
-        }
-        if (preg_match('/HASHTAGS:\s*(.*?)(?:\n|$)($|CTA:)/s', $response, $m)) {
-            $hashtags = trim($m[1]);
-        }
-        if (preg_match('/CTA:\s*(.*?)$/s', $response, $m)) {
-            $cta = trim($m[1]);
+        if ($last) {
+            if (preg_match('/^(.+?)(#.+)$/s', $last, $m)) {
+                $cta = trim($m[1]);
+                $hashtags = trim($m[2]);
+            } else {
+                $cta = $last;
+            }
         }
 
-        if ($hook && $text) {
-            $text = $hook . "\n\n" . $text;
-        } elseif (!$text && !$hashtags && !$cta) {
+        if (!$text) {
             $text = $response;
         }
 
