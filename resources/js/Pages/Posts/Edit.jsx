@@ -192,25 +192,17 @@ export default function PostsEdit({ postId }) {
 
         setUploading(true);
         try {
-            const webpFile = await convertToWebP(file);
+            const form = new FormData();
+            form.append('image', file);
+            form.append('post_id', postId);
 
-            const { data, error: uploadError } = await insforge.storage
-                .from('posts')
-                .upload(`${postId}/${webpFile.name}`, webpFile);
+            const res = await fetch('/api/upload-post-image', { method: 'POST', body: form });
+            const result = await res.json();
 
-            if (uploadError) {
-                setError(uploadError.message);
+            if (result.url) {
+                setPost(prev => ({ ...prev, image_url: result.url }));
             } else {
-                const { data: urlData } = insforge.storage
-                    .from('posts')
-                    .getPublicUrl(`${postId}/${webpFile.name}`);
-
-                await insforge.database
-                    .from('day_posts')
-                    .update({ image_url: urlData.publicUrl })
-                    .eq('id', postId);
-
-                setPost(prev => ({ ...prev, image_url: urlData.publicUrl }));
+                setError(result.error || 'Error al subir imagen');
             }
         } catch (err) {
             setError(err.message);
