@@ -139,6 +139,14 @@ class AiController extends Controller
                             'status' => 'generated',
                         ]);
                         $updated++;
+                    } else {
+                        $this->patchRecord('day_posts', $post['id'], [
+                            'status' => 'pending',
+                        ]);
+                    }
+
+                    if (count($posts) > 1) {
+                        usleep(500000);
                     }
                 } catch (\Throwable $e) {
                     continue;

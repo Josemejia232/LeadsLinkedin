@@ -72,7 +72,7 @@ Devuelve tu respuesta usando este formato exacto:
 ---CONTENIDO---
 [Escribe aquí 2-3 párrafos cortos]
 ---CTA---
-[Escribe aquí un llamado a laacción, una pregunta para generar comentarios]
+[Escribe aquí un llamado a la acción, una pregunta para generar comentarios]
 ---HASHTAGS---
 [Escribe aquí 5-10 hashtags relevantes separados por espacio, empezando cada uno con #]";
 
