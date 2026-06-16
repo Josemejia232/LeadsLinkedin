@@ -11,6 +11,7 @@ class AiController extends Controller
 {
     private string $baseUrl = 'https://w66d8gas.us-east.insforge.app';
     private string $anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NzkzMTR9.Cors_ettZF-ufE9Ky1MhKWaYTdD4OP4IzLGx_iMRiiQ';
+    private string $adminKey = 'ik_31ff2d2223e646df22d21e93a9c9346f';
 
     public function currentPlan()
     {
@@ -144,6 +145,47 @@ class AiController extends Controller
                 'generated' => $updated,
                 'total' => count($posts),
             ]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function uploadPostImage(Request $request)
+    {
+        try {
+            $postId = $request->input('post_id');
+            $file = $request->file('image');
+
+            if (!$postId || !$file) {
+                return response()->json(['error' => 'post_id and image required'], 400);
+            }
+
+            $ext = $file->getClientOriginalExtension();
+            $key = $postId . '/' . uniqid() . '.' . $ext;
+
+            $response = Http::withHeaders([
+                'apikey' => $this->adminKey,
+                'Authorization' => 'Bearer ' . $this->adminKey,
+                'Content-Type' => $file->getMimeType(),
+            ])->withBody(
+                file_get_contents($file->getRealPath()),
+                $file->getMimeType()
+            )->post($this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key));
+
+            if ($response->failed()) {
+                return response()->json(['error' => 'Storage upload failed: ' . $response->body()], 500);
+            }
+
+            $url = $this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key);
+
+            Http::withHeaders([
+                'apikey' => $this->anonKey,
+                'Authorization' => 'Bearer ' . $this->anonKey,
+            ])->patch($this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId, [
+                'image_url' => $url,
+            ]);
+
+            return response()->json(['url' => $url]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

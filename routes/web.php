@@ -57,3 +57,4 @@ Route::get('/contacts/{contact}/edit', function ($contact) {
 Route::get('/api/ai/generate-titles', [App\Http\Controllers\Api\AiController::class, 'generateTitles']);
 Route::get('/api/ai/generate-plan-content', [App\Http\Controllers\Api\AiController::class, 'generatePlanContent']);
 Route::get('/api/ai/current-plan', [App\Http\Controllers\Api\AiController::class, 'currentPlan']);
+Route::post('/api/upload-post-image', [App\Http\Controllers\Api\AiController::class, 'uploadPostImage']);

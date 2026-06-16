@@ -179,45 +179,23 @@ export default function PlansShow({ planId }) {
 
         setUploadingPostId(postId);
         try {
-            const img = new Image();
-            img.onload = async () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                canvas.toBlob(async (blob) => {
-                    if (!blob) { setUploadingPostId(null); return; }
-                    const name = file.name.replace(/\.[^.]+$/, '') + '.webp';
-                    const webpFile = new File([blob], name, { type: 'image/webp' });
+            const form = new FormData();
+            form.append('image', file);
+            form.append('post_id', postId);
 
-                    const { error: uploadError } = await insforge.storage
-                        .from('posts')
-                        .upload(`${postId}/${webpFile.name}`, webpFile);
+            const res = await fetch('/api/upload-post-image', { method: 'POST', body: form });
+            const result = await res.json();
 
-                    if (uploadError) {
-                        setError(uploadError.message);
-                    } else {
-                        const { data: urlData } = insforge.storage
-                            .from('posts')
-                            .getPublicUrl(`${postId}/${webpFile.name}`);
-
-                        await insforge.database
-                            .from('day_posts')
-                            .update({ image_url: urlData.publicUrl })
-                            .eq('id', postId);
-
-                        setPosts(prev => prev.map(p =>
-                            p.id === postId ? { ...p, image_url: urlData.publicUrl } : p
-                        ));
-                    }
-                    setUploadingPostId(null);
-                }, 'image/webp', 0.8);
-            };
-            img.onerror = () => { setUploadingPostId(null); setError('Error al cargar la imagen'); };
-            img.src = URL.createObjectURL(file);
+            if (result.url) {
+                setPosts(prev => prev.map(p =>
+                    p.id === postId ? { ...p, image_url: result.url } : p
+                ));
+            } else {
+                setError(result.error || 'Error al subir imagen');
+            }
         } catch (err) {
             setError(err.message);
+        } finally {
             setUploadingPostId(null);
         }
     };
