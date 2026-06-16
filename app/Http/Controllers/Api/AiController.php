@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\AppConfig;
 use App\Services\GeminiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -31,117 +30,123 @@ class AiController extends Controller
 
     public function generateTitles(Request $request)
     {
-        $planId = $request->query('plan_id');
-        if (!$planId) {
-            return response()->json(['error' => 'plan_id required'], 400);
-        }
-
-        $plan = $this->fetchPlan($planId);
-        if (!$plan) {
-            return response()->json(['error' => 'Plan not found'], 404);
-        }
-
-        $existing = $this->fetchAll('day_posts', ['plan_id' => 'eq.' . $planId, 'limit' => 1]);
-        if (!empty($existing)) {
-            return response()->json(['error' => 'Posts already exist for this plan'], 400);
-        }
-
-        $weekdays = $this->getWeekdays($plan['year'], $plan['month']);
-        $count = min($plan['total_posts'] ?? 10, count($weekdays));
-
-        $geminiKey = $this->getConfig('GEMINI_API_KEY');
-        $titles = [];
-
-        if ($geminiKey) {
-            AppConfig::set('GEMINI_API_KEY', $geminiKey);
-            $gemini = app(GeminiService::class);
-            try {
-                $titles = $gemini->generatePostTitles(
-                    $plan['topic_name'],
-                    $plan['industry'] ?? '',
-                    $plan['keywords'] ?? '',
-                    $count
-                );
-            } catch (\Exception $e) {
-                $titles = [];
+        try {
+            $planId = $request->query('plan_id');
+            if (!$planId) {
+                return response()->json(['error' => 'plan_id required'], 400);
             }
-        }
 
-        $created = 0;
-        $postTypes = ['educational', 'informative', 'promotional', 'carousel', 'educational'];
+            $plan = $this->fetchPlan($planId);
+            if (!$plan) {
+                return response()->json(['error' => 'Plan not found'], 404);
+            }
 
-        for ($i = 0; $i < $count; $i++) {
-            $dayIndex = $i % max(count($weekdays), 1);
-            $title = $titles[$i] ?? 'Post #' . ($i + 1) . ' - ' . $plan['topic_name'];
-            $postType = $postTypes[$i % count($postTypes)];
+            $existing = $this->fetchAll('day_posts', ['plan_id' => 'eq.' . $planId, 'limit' => 1]);
+            if (!empty($existing)) {
+                return response()->json(['error' => 'Posts already exist for this plan'], 400);
+            }
 
-            $this->createPost([
-                'plan_id' => (int) $planId,
-                'date' => $weekdays[$dayIndex]->format('Y-m-d'),
-                'title' => $title,
-                'post_type' => $postType,
-                'status' => 'pending',
-                'order' => $i + 1,
+            $weekdays = $this->getWeekdays($plan['year'], $plan['month']);
+            $count = min($plan['total_posts'] ?? 10, count($weekdays));
+
+            $geminiKey = $this->getConfig('GEMINI_API_KEY');
+            $titles = [];
+
+            if ($geminiKey) {
+                $gemini = app(GeminiService::class)->setApiKey($geminiKey);
+                try {
+                    $titles = $gemini->generatePostTitles(
+                        $plan['topic_name'],
+                        $plan['industry'] ?? '',
+                        $plan['keywords'] ?? '',
+                        $count
+                    );
+                } catch (\Exception $e) {
+                    $titles = [];
+                }
+            }
+
+            $created = 0;
+            $postTypes = ['educational', 'informative', 'promotional', 'carousel', 'educational'];
+
+            for ($i = 0; $i < $count; $i++) {
+                $dayIndex = $i % max(count($weekdays), 1);
+                $title = $titles[$i] ?? 'Post #' . ($i + 1) . ' - ' . $plan['topic_name'];
+                $postType = $postTypes[$i % count($postTypes)];
+
+                $this->createPost([
+                    'plan_id' => (int) $planId,
+                    'date' => $weekdays[$dayIndex]->format('Y-m-d'),
+                    'title' => $title,
+                    'post_type' => $postType,
+                    'status' => 'pending',
+                    'order' => $i + 1,
+                ]);
+                $created++;
+            }
+
+            return response()->json([
+                'success' => true,
+                'created' => $created,
             ]);
-            $created++;
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-
-        return response()->json([
-            'success' => true,
-            'created' => $created,
-        ]);
     }
 
     public function generatePlanContent(Request $request)
     {
-        $planId = $request->query('plan_id');
-        if (!$planId) {
-            return response()->json(['error' => 'plan_id required'], 400);
-        }
-
-        $plan = $this->fetchPlan($planId);
-        if (!$plan) {
-            return response()->json(['error' => 'Plan not found'], 404);
-        }
-
-        $geminiKey = $this->getConfig('GEMINI_API_KEY');
-        if (!$geminiKey) {
-            return response()->json(['success' => true, 'generated' => 0, 'total' => 0]);
-        }
-
-        $posts = $this->fetchPendingPosts($planId);
-
-        AppConfig::set('GEMINI_API_KEY', $geminiKey);
-        $gemini = app(GeminiService::class);
-        $updated = 0;
-
-        foreach ($posts as $post) {
-            try {
-                $content = $gemini->generatePostContent(
-                    $plan['topic_name'],
-                    $post['title'],
-                    $post['post_type'],
-                    $plan['keywords'] ?? '',
-                    ''
-                );
-
-                $this->patchRecord('day_posts', $post['id'], [
-                    'text_content' => $content['text'] ?? '',
-                    'hashtags' => $content['hashtags'] ?? '',
-                    'call_to_action' => $content['cta'] ?? '',
-                    'status' => 'generated',
-                ]);
-                $updated++;
-            } catch (\Exception $e) {
-                continue;
+        try {
+            $planId = $request->query('plan_id');
+            if (!$planId) {
+                return response()->json(['error' => 'plan_id required'], 400);
             }
-        }
 
-        return response()->json([
-            'success' => true,
-            'generated' => $updated,
-            'total' => count($posts),
-        ]);
+            $plan = $this->fetchPlan($planId);
+            if (!$plan) {
+                return response()->json(['error' => 'Plan not found'], 404);
+            }
+
+            $geminiKey = $this->getConfig('GEMINI_API_KEY');
+            if (!$geminiKey) {
+                return response()->json(['success' => true, 'generated' => 0, 'total' => 0]);
+            }
+
+            $posts = $this->fetchPendingPosts($planId);
+
+            $gemini = app(GeminiService::class)->setApiKey($geminiKey);
+            $updated = 0;
+
+            foreach ($posts as $post) {
+                try {
+                    $content = $gemini->generatePostContent(
+                        $plan['topic_name'],
+                        $post['title'],
+                        $post['post_type'],
+                        $plan['keywords'] ?? '',
+                        ''
+                    );
+
+                    $this->patchRecord('day_posts', $post['id'], [
+                        'text_content' => $content['text'] ?? '',
+                        'hashtags' => $content['hashtags'] ?? '',
+                        'call_to_action' => $content['cta'] ?? '',
+                        'status' => 'generated',
+                    ]);
+                    $updated++;
+                } catch (\Exception $e) {
+                    continue;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'generated' => $updated,
+                'total' => count($posts),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
     private function getConfig(string $key): ?string

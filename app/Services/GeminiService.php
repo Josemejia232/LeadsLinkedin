@@ -9,6 +9,14 @@ class GeminiService
 {
     private const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
+    private ?string $apiKey = null;
+
+    public function setApiKey(?string $apiKey): self
+    {
+        $this->apiKey = $apiKey;
+        return $this;
+    }
+
     private const LINKEDIN_SYSTEM_PROMPT = <<<'PROMPT'
 Eres un experto en marketing de contenidos B2B para LinkedIn. SIEMPRE sigues esta estructura universal para cada publicación:
 
@@ -26,11 +34,12 @@ REGLAS:
 - El texto total debe tener entre 100 y 300 palabras
 PROMPT;
 
-    public function generate(array $contents, float $temperature = 0.8, int $maxTokens = 4096): string
+    public function generate(array $contents, float $temperature = 0.8, int $maxTokens = 4096, ?string $apiKey = null): string
     {
+        $key = $apiKey ?? $this->apiKey ?? AppConfig::get('GEMINI_API_KEY');
         $response = Http::timeout(60)
             ->withoutVerifying()
-            ->post(self::API_URL . '?key=' . AppConfig::get('GEMINI_API_KEY'), [
+            ->post(self::API_URL . '?key=' . $key, [
                 'system_instruction' => [
                     'parts' => [['text' => self::LINKEDIN_SYSTEM_PROMPT]],
                 ],
