@@ -2,7 +2,7 @@ services:
   - type: web
     name: leadslinkedin
     runtime: php
-    phpVersion: '8.4'
+    phpVersion: '8.3'
     buildCommand: composer install --no-dev && npm ci && npm run build
     startCommand: php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT
     envVars:
@@ -10,3 +10,23 @@ services:
         value: production
       - key: APP_DEBUG
         value: "false"
+      - key: APP_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LINKEDIN_CLIENT_ID
+        sync: false
+      - key: LINKEDIN_CLIENT_SECRET
+        sync: false
+      - key: LINKEDIN_REDIRECT_URI
+        value: https://tu-app.onrender.com/publisher/linkedin/callback
+      - key: VITE_INSFORGE_URL
+        value: https://w66d8gas.us-east.insforge.app
+      - key: VITE_INSFORGE_ANON_KEY
+        sync: false
+
+databases:
+  - name: leadslinkedin-db
+    databaseName: leadslinkedin
+    plan: free
+    postgresMajorVersion: 16
