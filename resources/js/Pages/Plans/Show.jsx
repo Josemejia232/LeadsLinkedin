@@ -169,8 +169,26 @@ export default function PlansShow({ planId }) {
         }
     };
 
-    const toggleExpand = (postId) => {
+    const toggleExpand = async (postId) => {
         setExpandedPostId(prev => prev === postId ? null : postId);
+
+        if (expandedPostId !== postId) {
+            const post = posts.find(p => p.id === postId);
+            if (post && !post.call_to_action && !post.hashtags && post.title && post.title !== '') {
+                try {
+                    const res = await fetch('/api/ai/generate-missing-fields?post_id=' + postId);
+                    const result = await res.json();
+                    if (result.call_to_action || result.hashtags) {
+                        setPosts(prev => prev.map(p =>
+                            p.id === postId
+                                ? { ...p, call_to_action: result.call_to_action || p.call_to_action, hashtags: result.hashtags || p.hashtags }
+                                : p
+                        ));
+                    }
+                } catch (err) {
+                }
+            }
+        }
     };
 
     const handleImageUpload = async (e, postId) => {

@@ -231,4 +231,36 @@ Devuelve solo los títulos numerados del 1 al {$totalPosts}.";
             'titles' => $titles,
         ];
     }
+
+    public function generateCtaAndHashtags(string $topic, string $title): array
+    {
+        $prompt = "Tema: {$topic}\nTítulo: {$title}\n\nGenera solo un Call to Action (una pregunta para LinkedIn que invite a comentar) y 5-10 hashtags relevantes separados por espacio.\n\nFormato:\nCTA: [texto]\nHASHTAGS: [#tag1 #tag2 ...]";
+
+        $response = $this->generate([
+            ['parts' => [['text' => $prompt]]],
+        ]);
+
+        $cta = '';
+        $hashtags = '';
+
+        if (preg_match('/CTA:\s*(.+?)(?:\n|$)/s', $response, $m)) {
+            $cta = trim($m[1]);
+        }
+        if (preg_match('/HASHTAGS:\s*(.+?)$/s', $response, $m)) {
+            $hashtags = trim($m[1]);
+        }
+
+        if (!$cta && !$hashtags) {
+            $lines = explode("\n", trim($response));
+            $cta = trim($lines[0] ?? '');
+            if (count($lines) > 1) {
+                $last = trim($lines[count($lines) - 1]);
+                if (str_starts_with($last, '#')) {
+                    $hashtags = $last;
+                }
+            }
+        }
+
+        return ['cta' => $cta, 'hashtags' => $hashtags];
+    }
 }

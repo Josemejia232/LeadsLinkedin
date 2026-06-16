@@ -150,6 +150,48 @@ class AiController extends Controller
         }
     }
 
+    public function generateMissingFields(Request $request)
+    {
+        try {
+            $postId = $request->query('post_id');
+            if (!$postId) {
+                return response()->json(['error' => 'post_id required'], 400);
+            }
+
+            $posts = $this->fetchAll('day_posts', ['id' => 'eq.' . $postId]);
+            $post = $posts[0] ?? null;
+            if (!$post) {
+                return response()->json(['error' => 'Post not found'], 404);
+            }
+
+            $plan = $this->fetchPlan($post['plan_id']);
+
+            $geminiKey = $this->getConfig('GEMINI_API_KEY');
+            $update = [];
+            $needsGeneration = false;
+
+            $topic = $plan['topic_name'] ?? $post['title'] ?? '';
+
+            if (empty($post['call_to_action']) && empty($post['hashtags']) && !empty($post['title'])) {
+                $needsGeneration = true;
+                if ($geminiKey) {
+                    $gemini = app(GeminiService::class)->setApiKey($geminiKey);
+                    $result = $gemini->generateCtaAndHashtags($topic, $post['title']);
+                    $update['call_to_action'] = $result['cta'] ?? '';
+                    $update['hashtags'] = $result['hashtags'] ?? '';
+                }
+            }
+
+            if (!empty($update)) {
+                $this->patchRecord('day_posts', $postId, $update);
+            }
+
+            return response()->json($update);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     public function uploadPostImage(Request $request)
     {
         try {
@@ -170,7 +212,7 @@ class AiController extends Controller
             ])->withBody(
                 file_get_contents($file->getRealPath()),
                 $file->getMimeType()
-            )->post($this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key));
+            )->put($this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key));
 
             if ($response->failed()) {
                 return response()->json(['error' => 'Storage upload failed: ' . $response->body()], 500);
