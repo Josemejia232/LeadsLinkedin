@@ -53,3 +53,5 @@ Route::get('/contacts/create', function () {
 Route::get('/contacts/{contact}/edit', function ($contact) {
     return inertia('Contacts/Edit', ['contactId' => $contact]);
 })->name('contacts.edit');
+
+Route::post('/api/ai/generate-plan-content', [App\Http\Controllers\Api\AiController::class, 'generatePlanContent']);
