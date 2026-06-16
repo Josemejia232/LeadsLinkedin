@@ -1,5 +1,9 @@
 FROM php:8.4-cli
 
+ARG VITE_INSFORGE_URL
+ARG VITE_INSFORGE_ANON_KEY
+ARG VITE_APP_NAME
+
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     libzip-dev \
@@ -15,7 +19,10 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 COPY . .
 
-RUN composer install --no-dev --optimize-autoloader && \
+RUN VITE_INSFORGE_URL=${VITE_INSFORGE_URL} \
+    VITE_INSFORGE_ANON_KEY=${VITE_INSFORGE_ANON_KEY} \
+    VITE_APP_NAME="${VITE_APP_NAME}" \
+    composer install --no-dev --optimize-autoloader && \
     npm ci && npm run build
 
 EXPOSE 10000
