@@ -15,6 +15,7 @@ export default function PlansShow({ planId }) {
     const [generatingContent, setGeneratingContent] = useState(false);
     const [expandedPostId, setExpandedPostId] = useState(null);
     const [uploadingPostId, setUploadingPostId] = useState(null);
+    const [generatingPostContent, setGeneratingPostContent] = useState(null);
     const fileInputRefs = useRef({});
 
     const months = [
@@ -98,6 +99,34 @@ export default function PlansShow({ planId }) {
             setError(err.message);
         } finally {
             setGeneratingContent(false);
+        }
+    };
+
+    const handleGeneratePostContent = async (postId) => {
+        setGeneratingPostContent(postId);
+        setError(null);
+        try {
+            const res = await fetch('/api/ai/generate-post-content?post_id=' + postId);
+            const result = await res.json();
+            if (result.success) {
+                setPosts(prev => prev.map(p =>
+                    p.id === postId
+                        ? {
+                            ...p,
+                            text_content: result.content.text,
+                            call_to_action: result.content.cta || p.call_to_action,
+                            hashtags: result.content.hashtags || p.hashtags,
+                            status: 'generated',
+                        }
+                        : p
+                ));
+            } else {
+                setError(result.error || 'Error al generar contenido');
+            }
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setGeneratingPostContent(null);
         }
     };
 
@@ -395,7 +424,20 @@ export default function PlansShow({ planId }) {
                                                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                                             <div>
                                                                 <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">Contenido</h4>
-                                                                <p className="whitespace-pre-wrap text-sm text-gray-700">{post.text_content || 'Sin contenido'}</p>
+                                                                {post.text_content ? (
+                                                                    <p className="whitespace-pre-wrap text-sm text-gray-700">{post.text_content}</p>
+                                                                ) : (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <p className="text-sm text-gray-400">Sin contenido</p>
+                                                                        <button
+                                                                            onClick={() => handleGeneratePostContent(post.id)}
+                                                                            disabled={generatingPostContent === post.id}
+                                                                            className="rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-200 disabled:opacity-50"
+                                                                        >
+                                                                            {generatingPostContent === post.id ? 'Generando...' : 'Generar'}
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             <div className="space-y-4">
                                                                 <div>

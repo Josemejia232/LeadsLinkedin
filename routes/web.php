@@ -57,5 +57,6 @@ Route::get('/contacts/{contact}/edit', function ($contact) {
 Route::get('/api/ai/generate-titles', [App\Http\Controllers\Api\AiController::class, 'generateTitles']);
 Route::get('/api/ai/generate-plan-content', [App\Http\Controllers\Api\AiController::class, 'generatePlanContent']);
 Route::get('/api/ai/generate-missing-fields', [App\Http\Controllers\Api\AiController::class, 'generateMissingFields']);
+Route::get('/api/ai/generate-post-content', [App\Http\Controllers\Api\AiController::class, 'generatePostContentSingle']);
 Route::get('/api/ai/current-plan', [App\Http\Controllers\Api\AiController::class, 'currentPlan']);
 Route::post('/api/upload-post-image', [App\Http\Controllers\Api\AiController::class, 'uploadPostImage']);

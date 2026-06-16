@@ -146,7 +146,7 @@ class AiController extends Controller
                     }
 
                     if (count($posts) > 1) {
-                        usleep(500000);
+                        sleep(2);
                     }
                 } catch (\Throwable $e) {
                     continue;
@@ -206,6 +206,55 @@ class AiController extends Controller
             }
 
             return response()->json($update);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function generatePostContentSingle(Request $request)
+    {
+        try {
+            $postId = $request->query('post_id');
+            if (!$postId) {
+                return response()->json(['error' => 'post_id required'], 400);
+            }
+
+            $posts = $this->fetchAll('day_posts', ['id' => 'eq.' . $postId]);
+            $post = $posts[0] ?? null;
+            if (!$post) {
+                return response()->json(['error' => 'Post not found'], 404);
+            }
+
+            if (!empty($post['text_content'])) {
+                return response()->json(['success' => true, 'message' => 'Already has content']);
+            }
+
+            $plan = $this->fetchPlan($post['plan_id']);
+            $geminiKey = $this->getConfig('GEMINI_API_KEY');
+            if (!$geminiKey) {
+                return response()->json(['error' => 'No Gemini key configured'], 400);
+            }
+
+            $gemini = app(GeminiService::class)->setApiKey($geminiKey);
+            $content = $gemini->generatePostContent(
+                $plan['topic_name'] ?? '',
+                $post['title'],
+                $post['post_type'],
+                $plan['keywords'] ?? '',
+                ''
+            );
+
+            if (!empty($content['text'])) {
+                $this->patchRecord('day_posts', $postId, [
+                    'text_content' => $content['text'],
+                    'hashtags' => $content['hashtags'] ?? '',
+                    'call_to_action' => $content['cta'] ?? '',
+                    'status' => 'generated',
+                ]);
+                return response()->json(['success' => true, 'content' => $content]);
+            }
+
+            return response()->json(['error' => 'Failed to generate content'], 500);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
