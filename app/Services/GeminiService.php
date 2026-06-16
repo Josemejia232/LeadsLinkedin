@@ -61,37 +61,55 @@ Título: {$title}
 Tipo: {$postType}
 Palabras clave: {$keywords}
 
-Escribelo en 3 partes separadas por el delimitador '|||':
+Devuelve tu respuesta usando este formato exacto:
 
-PRIMERA PARTE ||| Hook (1 frase impactante que enganche)
-SEGUNDA PARTE ||| Contenido (2-3 párrafos cortos, directos, sin rodeos)
-TERCERA PARTE ||| 1. Un llamado a la acción (pregunta para generar comentarios) y 2. 5-10 hashtags relevantes en la misma línea
-
-Ejemplo de formato esperado:
-¿Sabías que el 80% de las empresas ignoran esto?|||La mayoría comete el error de no medir sus métricas clave. Sin datos, no hay mejora posible. Empieza con una herramienta simple y revisa semanalmente.|||¿Tú ya revisas tus métricas? Comparte tu experiencia #Marketing #LinkedIn #Estrategia #Tips #Negocios";
+---HOOK---
+[Escribe aquí el hook, una frase impactante que enganche]
+---CONTENIDO---
+[Escribe aquí 2-3 párrafos cortos]
+---CTA---
+[Escribe aquí un llamado a laacción, una pregunta para generar comentarios]
+---HASHTAGS---
+[Escribe aquí 5-10 hashtags relevantes separados por espacio, empezando cada uno con #]";
 
         $response = $this->generate([
             ['parts' => [['text' => $prompt]]],
         ]);
 
-        $parts = explode('|||', $response);
-        $text = trim($parts[0] ?? '');
-        $body = trim($parts[1] ?? '');
-        $last = trim($parts[2] ?? '');
-
-        if ($body) {
-            $text .= "\n\n" . $body;
-        }
-
+        $text = '';
         $hashtags = '';
         $cta = '';
 
-        if ($last) {
-            if (preg_match('/^(.+?)(#.+)$/s', $last, $m)) {
-                $cta = trim($m[1]);
-                $hashtags = trim($m[2]);
-            } else {
-                $cta = $last;
+        $pattern = '/---HOOK---\s*(.*?)\s*---CONTENIDO---\s*(.*?)\s*---CTA---\s*(.*?)\s*---HASHTAGS---\s*(.*?)$/s';
+        if (preg_match($pattern, $response, $m)) {
+            $hook = trim($m[1]);
+            $body = trim($m[2]);
+            $cta = trim($m[3]);
+            $hashtags = trim($m[4]);
+
+            if ($hook && $body) {
+                $text = $hook . "\n\n" . $body;
+            } elseif ($hook) {
+                $text = $hook;
+            } elseif ($body) {
+                $text = $body;
+            }
+        }
+
+        if (!$text) {
+            $parts = preg_split('/\n\n+/', trim($response), 3);
+            $text = trim($parts[0] ?? '');
+            if (count($parts) > 1) {
+                $text .= "\n\n" . trim($parts[1] ?? '');
+            }
+            if (count($parts) > 2) {
+                $last = trim($parts[2]);
+                if (preg_match('/^(.*?)((?:#[^\s#]+\s*)+)$/s', $last, $hm)) {
+                    $cta = trim($hm[1]);
+                    $hashtags = trim($hm[2]);
+                } else {
+                    $cta = $last;
+                }
             }
         }
 
