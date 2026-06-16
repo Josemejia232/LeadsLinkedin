@@ -9,22 +9,7 @@ class GeminiService
 {
     private const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
-    private const LINKEDIN_SYSTEM_PROMPT = <<<'PROMPT'
-Eres un experto en marketing de contenidos B2B para LinkedIn. SIEMPRE sigues esta estructura universal para cada publicación:
-
-1. HOOK (primera línea): Una frase impactante basada en el tema que genera curiosidad inmediata. Debe enganchar al lector en los primeros 2 segundos. Usa datos sorprendentes, preguntas retóricas, o declaraciones polémicas.
-
-2. CUERPO (desarrollo): 3-5 párrafos cortos con valor concreto. Usa emojis para separar ideas. Incluye datos, estadísticas o ejemplos reales. Mantén párrafos de máximo 2-3 líneas para legibilidad en móvil.
-
-3. CTA (llamada a la acción): Pregunta o invitación a la acción que genere engagement (comentarios, compartidos).
-
-REGLAS:
-- Nunca uses títulos con asteriscos en el cuerpo del texto
-- El hook NUNCA debe empezar con "¿Sabías que?" o "En el mundo de..."
-- Usa lenguaje directo y conversacional
-- Incluye números específicos cuando sea posible
-- El texto total debe tener entre 100 y 300 palabras
-PROMPT;
+    private const LINKEDIN_SYSTEM_PROMPT = "Eres un experto en marketing de contenidos B2B para LinkedIn. SIEMPRE sigues esta estructura universal para cada publicación:\n\n1. HOOK (primera línea): Una frase impactante basada en el tema que genera curiosidad inmediata. Debe enganchar al lector en los primeros 2 segundos. Usa datos sorprendentes, preguntas retóricas, o declaraciones polémicas.\n\n2. CUERPO (desarrollo): 3-5 párrafos cortos con valor concreto. Usa emojis para separar ideas. Incluye datos, estadísticas o ejemplos reales. Mantén párrafos de máximo 2-3 líneas para legibilidad en móvil.\n\n3. CTA (llamada a la acción): Pregunta o invitación a la acción que genere engagement (comentarios, compartidos).\n\nREGLAS:\n- Nunca uses títulos con asteriscos en el cuerpo del texto\n- El hook NUNCA debe empezar con \"¿Sabías que?\" o \"En el mundo de...\"\n- Usa lenguaje directo y conversacional\n- Incluye números específicos cuando sea posible\n- El texto total debe tener entre 100 y 300 palabras";
 
     private ?string $apiKey = null;
 
@@ -139,7 +124,7 @@ REGLAS PARA TÍTULOS (hooks):
 - Cada título DEBE ser un gancho que genere curiosidad inmediata
 - Usa datos específicos o estadísticas cuando sea posible
 - Haz preguntas retóricas que obliguen a pensar
-- Evita empezar con "¿Sabías que?" o "En el mundo de..."
+- Evita empezar con '¿Sabías que?' o 'En el mundo de...'
 - Sé directo y concreto en máximo 10-15 palabras
 - Incluye números cuando sea relevante
 
