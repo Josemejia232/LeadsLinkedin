@@ -174,13 +174,29 @@ export default function PlansShow({ planId }) {
     const handleSchedulePost = async (postId) => {
         if (scheduleDate) {
             try {
-                const { error } = await insforge.database
+                const { data: existing } = await insforge.database
                     .from('scheduled_posts')
-                    .upsert([{
-                        day_post_id: postId,
-                        scheduled_date: new Date(scheduleDate).toISOString(),
-                        status: 'scheduled',
-                    }]);
+                    .select('id')
+                    .eq('day_post_id', postId)
+                    .maybeSingle();
+
+                const payload = {
+                    day_post_id: postId,
+                    scheduled_date: new Date(scheduleDate).toISOString(),
+                    status: 'scheduled',
+                };
+
+                let error;
+                if (existing) {
+                    ({ error } = await insforge.database
+                        .from('scheduled_posts')
+                        .update(payload)
+                        .eq('id', existing.id));
+                } else {
+                    ({ error } = await insforge.database
+                        .from('scheduled_posts')
+                        .insert([payload]));
+                }
 
                 if (error) {
                     setError(error.message);

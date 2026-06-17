@@ -137,20 +137,35 @@ export default function PostsEdit({ postId }) {
         setError(null);
 
         try {
-            const { error: schedError } = await insforge.database
-                .from('scheduled_posts')
-                .upsert([{
-                    day_post_id: postId,
-                    scheduled_date: new Date(scheduledDate).toISOString(),
-                    status: 'scheduled',
-                }]);
+            const payload = {
+                day_post_id: postId,
+                scheduled_date: new Date(scheduledDate).toISOString(),
+                status: 'scheduled',
+            };
 
-            if (schedError) {
-                setError(schedError.message);
+            if (scheduledPost?.id) {
+                const { error: schedError } = await insforge.database
+                    .from('scheduled_posts')
+                    .update(payload)
+                    .eq('id', scheduledPost.id);
+
+                if (schedError) {
+                    setError(schedError.message);
+                    return;
+                }
             } else {
-                setScheduledPost({ scheduled_date: scheduledDate, status: 'scheduled' });
-                setFlash({ success: 'Horario actualizado.' });
+                const { error: schedError } = await insforge.database
+                    .from('scheduled_posts')
+                    .insert([payload]);
+
+                if (schedError) {
+                    setError(schedError.message);
+                    return;
+                }
             }
+
+            setScheduledPost({ ...scheduledPost, scheduled_date: scheduledDate, status: 'scheduled' });
+            setFlash({ success: 'Horario actualizado.' });
         } catch (err) {
             setError(err.message);
         } finally {
