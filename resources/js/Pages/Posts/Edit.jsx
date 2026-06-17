@@ -186,18 +186,31 @@ export default function PostsEdit({ postId }) {
         });
     }
 
+    const toWebP = (file) => new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const c = document.createElement('canvas');
+            c.width = img.width;
+            c.height = img.height;
+            c.getContext('2d').drawImage(img, 0, 0);
+            c.toBlob((blob) => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result);
+                r.onerror = reject;
+                r.readAsDataURL(blob);
+            }, 'image/webp', 0.8);
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+    });
+
     const handleImageUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         setUploading(true);
         try {
-            const reader = new FileReader();
-            const dataUrl = await new Promise((resolve, reject) => {
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
+            const dataUrl = await toWebP(file);
 
             const res = await fetch('/api/upload-post-image', {
                 method: 'POST',
