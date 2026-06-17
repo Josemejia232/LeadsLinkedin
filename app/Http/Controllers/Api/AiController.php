@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\GeminiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 
 class AiController extends Controller
 {
@@ -274,7 +275,7 @@ class AiController extends Controller
             $key = $postId . '/' . uniqid() . '.' . $ext;
 
             $tmpPath = $file->storeAs('tmp/uploads', $key, ['disk' => 'local']);
-            $fullPath = storage_path('app/' . $tmpPath);
+            $fullPath = Storage::disk('local')->path($tmpPath);
 
             $response = Http::withHeaders([
                 'apikey' => $this->adminKey,
