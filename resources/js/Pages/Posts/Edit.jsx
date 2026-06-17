@@ -87,7 +87,9 @@ export default function PostsEdit({ postId }) {
 
                 if (schedData) {
                     setScheduledPost(schedData);
-                    setScheduledDate(new Date(schedData.scheduled_date).toISOString().slice(0, 16));
+                    const d = new Date(schedData.scheduled_date);
+                    const local = d.toLocaleString('sv-SE', { timeZone: 'America/Bogota' }).replace(' ', 'T').slice(0, 16);
+                    setScheduledDate(local);
                 }
             } catch (err) {
                 setError(err.message);

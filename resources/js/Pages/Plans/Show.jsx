@@ -411,7 +411,7 @@ export default function PlansShow({ planId }) {
                                                                         value={scheduleDate}
                                                                         onChange={(e) => setScheduleDate(e.target.value)}
                                                                         className="rounded border border-gray-300 px-1 py-0.5 text-xs"
-                                                                        min={new Date().toISOString().slice(0, 16)}
+                                                                        min={new Date().toLocaleString('sv-SE', { timeZone: 'America/Bogota' }).replace(' ', 'T').slice(0, 16)}
                                                                     />
                                                                     <button
                                                                         onClick={() => handleSchedulePost(post.id)}
