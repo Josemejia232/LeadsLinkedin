@@ -192,26 +192,17 @@ export default function PostsEdit({ postId }) {
 
         setUploading(true);
         try {
-            const ext = file.name.split('.').pop();
-            const key = `${postId}/${Date.now()}.${ext}`;
+            const form = new FormData();
+            form.append('image', file);
+            form.append('post_id', postId);
 
-            const { data, error } = await insforge.storage.from('posts').upload(key, file);
-            if (error) {
-                setError('Error al subir a storage: ' + error.message);
-                return;
-            }
-
-            const res = await fetch('/api/upload-post-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ post_id: postId, url: data.url }),
-            });
+            const res = await fetch('/api/upload-post-image', { method: 'POST', body: form });
             const result = await res.json();
 
             if (result.url) {
                 setPost(prev => ({ ...prev, image_url: result.url }));
             } else {
-                setError(result.error || 'Error al guardar imagen');
+                setError(result.error || 'Error al subir imagen');
             }
         } catch (err) {
             setError(err.message);

@@ -264,22 +264,34 @@ class AiController extends Controller
     {
         try {
             $postId = $request->input('post_id');
-            $url = $request->input('url');
+            $file = $request->file('image');
 
-            if (!$postId || !$url) {
-                return response()->json(['error' => 'post_id and url required'], 400);
+            if (!$postId || !$file || !$file->isValid()) {
+                return response()->json(['error' => 'post_id and image required'], 400);
             }
 
+            $ext = $file->getClientOriginalExtension();
+            $key = $postId . '/' . uniqid() . '.' . $ext;
+
             $response = Http::withHeaders([
+                'apikey' => $this->adminKey,
+                'Authorization' => 'Bearer ' . $this->adminKey,
+            ])->attach(
+                'file', file_get_contents($file->getPathname()), $key
+            )->put($this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key));
+
+            if ($response->failed()) {
+                return response()->json(['error' => 'Storage upload failed: ' . $response->body()], 500);
+            }
+
+            $url = $this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key);
+
+            Http::withHeaders([
                 'apikey' => $this->anonKey,
                 'Authorization' => 'Bearer ' . $this->anonKey,
             ])->patch($this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId, [
                 'image_url' => $url,
             ]);
-
-            if ($response->failed()) {
-                return response()->json(['error' => 'Database update failed: ' . $response->body()], 500);
-            }
 
             return response()->json(['url' => $url]);
         } catch (\Throwable $e) {
