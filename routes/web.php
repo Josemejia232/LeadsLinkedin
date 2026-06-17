@@ -60,3 +60,11 @@ Route::get('/api/ai/generate-missing-fields', [App\Http\Controllers\Api\AiContro
 Route::get('/api/ai/generate-post-content', [App\Http\Controllers\Api\AiController::class, 'generatePostContentSingle']);
 Route::get('/api/ai/current-plan', [App\Http\Controllers\Api\AiController::class, 'currentPlan']);
 Route::post('/api/upload-post-image', [App\Http\Controllers\Api\AiController::class, 'uploadPostImage']);
+
+Route::get('/cron/scheduler', function (\Illuminate\Http\Request $req) {
+    if ($req->query('token') !== 's3cr3t-publish-cron') {
+        abort(401);
+    }
+    \Illuminate\Support\Facades\Artisan::call('app:publish-scheduled');
+    return response(\Illuminate\Support\Facades\Artisan::output());
+})->name('cron.scheduler');

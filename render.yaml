@@ -19,7 +19,7 @@ services:
       - key: LINKEDIN_CLIENT_SECRET
         sync: false
       - key: LINKEDIN_REDIRECT_URI
-        value: https://tu-app.onrender.com/publisher/linkedin/callback
+        value: https://leadslinkedin.onrender.com/publisher/linkedin-callback
       - key: VITE_INSFORGE_URL
         value: https://w66d8gas.us-east.insforge.app
       - key: VITE_INSFORGE_ANON_KEY
