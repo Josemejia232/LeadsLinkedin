@@ -61,14 +61,16 @@ class PublishScheduledPosts extends Command
             $posts = $postRes->json();
             $post = $posts[0] ?? null;
 
-            if (!$post || !in_array($post['status'], ['generated', 'scheduled'])) {
-                Http::withHeaders([
-                    'apikey' => $this->anonKey,
-                    'Authorization' => 'Bearer ' . $this->anonKey,
-                ])->patch($this->baseUrl . '/api/database/records/scheduled_posts?id=eq.' . $scheduled['id'], [
-                    'status' => 'failed',
-                    'error_message' => 'Post not available for publishing',
-                ]);
+            if (!$post || $post['status'] === 'published') {
+                if ($post) {
+                    Http::withHeaders([
+                        'apikey' => $this->anonKey,
+                        'Authorization' => 'Bearer ' . $this->anonKey,
+                    ])->patch($this->baseUrl . '/api/database/records/scheduled_posts?id=eq.' . $scheduled['id'], [
+                        'status' => 'failed',
+                        'error_message' => 'Post not available for publishing',
+                    ]);
+                }
                 $failed++;
                 continue;
             }

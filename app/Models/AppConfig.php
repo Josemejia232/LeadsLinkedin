@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class AppConfig extends Model
 {
@@ -16,15 +18,23 @@ class AppConfig extends Model
     {
         $config = static::where('key', $key)->first();
 
-        return $config?->value ?? $default;
+        if ($config?->value) {
+            return $config->value;
+        }
+
+        return static::getFromInsforge($key) ?? $default;
     }
 
     public static function set(string $key, string $value): self
     {
-        return static::updateOrCreate(
+        $model = static::updateOrCreate(
             ['key' => $key],
             ['value' => $value]
         );
+
+        static::writeToInsforge($key, $value);
+
+        return $model;
     }
 
     public static function isGeminiConfigured(): bool
@@ -49,5 +59,76 @@ class AppConfig extends Model
     public static function getLinkedinPersonName(): string
     {
         return static::get('LINKEDIN_PERSON_NAME', '');
+    }
+
+    private static function getFromInsforge(string $key): ?string
+    {
+        try {
+            $baseUrl = env('VITE_INSFORGE_URL', 'https://w66d8gas.us-east.insforge.app');
+            $anonKey = env('VITE_INSFORGE_ANON_KEY');
+
+            if (!$anonKey) {
+                return null;
+            }
+
+            $response = Http::withHeaders([
+                'apikey' => $anonKey,
+                'Authorization' => 'Bearer ' . $anonKey,
+            ])->timeout(5)->get($baseUrl . '/api/database/records/app_configs', [
+                'key' => 'eq.' . $key,
+                'select' => 'value',
+            ]);
+
+            if ($response->successful()) {
+                $rows = $response->json();
+                return $rows[0]['value'] ?? null;
+            }
+        } catch (\Exception $e) {
+            Log::warning("AppConfig: failed to read {$key} from InsForge: " . $e->getMessage());
+        }
+
+        return null;
+    }
+
+    private static function writeToInsforge(string $key, string $value): void
+    {
+        try {
+            $baseUrl = env('VITE_INSFORGE_URL', 'https://w66d8gas.us-east.insforge.app');
+            $anonKey = env('VITE_INSFORGE_ANON_KEY');
+
+            if (!$anonKey) {
+                return;
+            }
+
+            // Find existing record
+            $response = Http::withHeaders([
+                'apikey' => $anonKey,
+                'Authorization' => 'Bearer ' . $anonKey,
+            ])->timeout(5)->get($baseUrl . '/api/database/records/app_configs', [
+                'key' => 'eq.' . $key,
+                'select' => 'id',
+            ]);
+
+            $existing = $response->successful() ? $response->json() : [];
+
+            if (!empty($existing[0]['id'])) {
+                Http::withHeaders([
+                    'apikey' => $anonKey,
+                    'Authorization' => 'Bearer ' . $anonKey,
+                ])->timeout(5)->patch($baseUrl . '/api/database/records/app_configs?id=eq.' . $existing[0]['id'], [
+                    'value' => $value,
+                ]);
+            } else {
+                Http::withHeaders([
+                    'apikey' => $anonKey,
+                    'Authorization' => 'Bearer ' . $anonKey,
+                    'Prefer' => 'return=minimal',
+                ])->timeout(5)->post($baseUrl . '/api/database/records/app_configs', [
+                    ['key' => $key, 'value' => $value],
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::warning("AppConfig: failed to write {$key} to InsForge: " . $e->getMessage());
+        }
     }
 }
