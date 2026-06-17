@@ -273,12 +273,17 @@ class AiController extends Controller
             $ext = $file->getClientOriginalExtension();
             $key = $postId . '/' . uniqid() . '.' . $ext;
 
+            $tmpPath = $file->storeAs('tmp/uploads', $key, ['disk' => 'local']);
+            $fullPath = storage_path('app/' . $tmpPath);
+
             $response = Http::withHeaders([
                 'apikey' => $this->adminKey,
                 'Authorization' => 'Bearer ' . $this->adminKey,
             ])->attach(
-                'file', $file->getContent(), $key
+                'file', file_get_contents($fullPath), $key
             )->put($this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key));
+
+            @unlink($fullPath);
 
             if ($response->failed()) {
                 return response()->json(['error' => 'Storage upload failed: ' . $response->body()], 500);
