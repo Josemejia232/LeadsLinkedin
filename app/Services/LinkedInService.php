@@ -158,7 +158,7 @@ class LinkedInService
         AppConfig::set('LINKEDIN_PERSON_EMAIL', $personEmail);
     }
 
-    public function publish(\App\Models\DayPost $post): array
+    public function publish($post): array
     {
         $token = $this->getValidToken();
         if (!$token) {
