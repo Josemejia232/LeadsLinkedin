@@ -233,11 +233,20 @@ export default function PlansShow({ planId }) {
 
         setUploadingPostId(postId);
         try {
-            const form = new FormData();
-            form.append('image', file);
-            form.append('post_id', postId);
+            const ext = file.name.split('.').pop();
+            const key = `${postId}/${Date.now()}.${ext}`;
 
-            const res = await fetch('/api/upload-post-image', { method: 'POST', body: form });
+            const { data, error } = await insforge.storage.from('posts').upload(key, file);
+            if (error) {
+                setError('Error al subir a storage: ' + error.message);
+                return;
+            }
+
+            const res = await fetch('/api/upload-post-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: postId, url: data.url }),
+            });
             const result = await res.json();
 
             if (result.url) {
@@ -245,7 +254,7 @@ export default function PlansShow({ planId }) {
                     p.id === postId ? { ...p, image_url: result.url } : p
                 ));
             } else {
-                setError(result.error || 'Error al subir imagen');
+                setError(result.error || 'Error al guardar imagen');
             }
         } catch (err) {
             setError(err.message);

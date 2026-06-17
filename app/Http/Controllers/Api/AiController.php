@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Services\GeminiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 
 class AiController extends Controller
 {
@@ -265,39 +264,22 @@ class AiController extends Controller
     {
         try {
             $postId = $request->input('post_id');
-            $file = $request->file('image');
+            $url = $request->input('url');
 
-            if (!$postId || !$file) {
-                return response()->json(['error' => 'post_id and image required'], 400);
+            if (!$postId || !$url) {
+                return response()->json(['error' => 'post_id and url required'], 400);
             }
-
-            $ext = $file->getClientOriginalExtension();
-            $key = $postId . '/' . uniqid() . '.' . $ext;
-
-            $tmpPath = $file->storeAs('tmp/uploads', $key, ['disk' => 'local']);
-            $fullPath = Storage::disk('local')->path($tmpPath);
 
             $response = Http::withHeaders([
-                'apikey' => $this->adminKey,
-                'Authorization' => 'Bearer ' . $this->adminKey,
-            ])->attach(
-                'file', file_get_contents($fullPath), $key
-            )->put($this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key));
-
-            @unlink($fullPath);
-
-            if ($response->failed()) {
-                return response()->json(['error' => 'Storage upload failed: ' . $response->body()], 500);
-            }
-
-            $url = $this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key);
-
-            Http::withHeaders([
                 'apikey' => $this->anonKey,
                 'Authorization' => 'Bearer ' . $this->anonKey,
             ])->patch($this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId, [
                 'image_url' => $url,
             ]);
+
+            if ($response->failed()) {
+                return response()->json(['error' => 'Database update failed: ' . $response->body()], 500);
+            }
 
             return response()->json(['url' => $url]);
         } catch (\Throwable $e) {
