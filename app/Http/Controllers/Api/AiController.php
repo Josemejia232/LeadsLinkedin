@@ -277,7 +277,7 @@ class AiController extends Controller
                 'apikey' => $this->adminKey,
                 'Authorization' => 'Bearer ' . $this->adminKey,
             ])->attach(
-                'file', file_get_contents($file->getRealPath()), $key
+                'file', $file->getContent(), $key
             )->put($this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key));
 
             if ($response->failed()) {
