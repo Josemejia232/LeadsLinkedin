@@ -286,12 +286,16 @@ class AiController extends Controller
 
             $url = $this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key);
 
-            Http::withHeaders([
+            $dbResponse = Http::withHeaders([
                 'apikey' => $this->anonKey,
                 'Authorization' => 'Bearer ' . $this->anonKey,
             ])->patch($this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId, [
                 'image_url' => $url,
             ]);
+
+            if ($dbResponse->failed()) {
+                return response()->json(['error' => 'Database update failed: ' . $dbResponse->body()], 500);
+            }
 
             return response()->json(['url' => $url]);
         } catch (\Throwable $e) {
