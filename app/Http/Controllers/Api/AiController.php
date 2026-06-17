@@ -264,20 +264,26 @@ class AiController extends Controller
     {
         try {
             $postId = $request->input('post_id');
-            $file = $request->file('image');
+            $dataUrl = $request->input('image');
 
-            if (!$postId || !$file || !$file->isValid()) {
+            if (!$postId || !$dataUrl) {
                 return response()->json(['error' => 'post_id and image required'], 400);
             }
 
-            $ext = $file->getClientOriginalExtension();
+            preg_match('/^data:image\/(\w+);base64,(.+)$/', $dataUrl, $matches);
+            if (!$matches) {
+                return response()->json(['error' => 'Invalid image data'], 400);
+            }
+
+            $ext = $matches[1];
+            $binary = base64_decode($matches[2]);
             $key = $postId . '/' . uniqid() . '.' . $ext;
 
             $response = Http::withHeaders([
                 'apikey' => $this->adminKey,
                 'Authorization' => 'Bearer ' . $this->adminKey,
             ])->attach(
-                'file', file_get_contents($file->getPathname()), $key
+                'file', $binary, $key
             )->put($this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key));
 
             if ($response->failed()) {

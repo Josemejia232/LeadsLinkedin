@@ -233,11 +233,18 @@ export default function PlansShow({ planId }) {
 
         setUploadingPostId(postId);
         try {
-            const form = new FormData();
-            form.append('image', file);
-            form.append('post_id', postId);
+            const reader = new FileReader();
+            const dataUrl = await new Promise((resolve, reject) => {
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
 
-            const res = await fetch('/api/upload-post-image', { method: 'POST', body: form });
+            const res = await fetch('/api/upload-post-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: postId, image: dataUrl }),
+            });
             const result = await res.json();
 
             if (result.url) {
