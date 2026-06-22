@@ -258,11 +258,13 @@ class PlanController extends Controller
                 }
             }
 
-            ScheduledPost::create([
-                'day_post_id' => $post->id,
-                'scheduled_date' => $scheduledDate,
-                'status' => 'scheduled',
-            ]);
+            ScheduledPost::updateOrCreate(
+                ['day_post_id' => $post->id],
+                [
+                    'scheduled_date' => $scheduledDate,
+                    'status' => 'scheduled',
+                ]
+            );
 
             $post->update(['status' => 'scheduled']);
         }
