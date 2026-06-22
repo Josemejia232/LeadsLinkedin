@@ -26,50 +26,83 @@ class GeminiService
         return $this;
     }
 
+    private function parseRetryDelay(string $body): int
+    {
+        $data = json_decode($body, true);
+        $seconds = 0;
+        foreach ($data['error']['details'] ?? [] as $detail) {
+            if (($detail['@type'] ?? '') === 'type.googleapis.com/google.rpc.RetryInfo') {
+                $delay = $detail['retryDelay'] ?? '';
+                if (preg_match('/(\d+)s/', $delay, $m)) {
+                    $seconds = (int) $m[1];
+                }
+            }
+        }
+        return $seconds > 0 ? $seconds : 30;
+    }
+
     public function generate(array $contents, float $temperature = 0.8, int $maxTokens = 4096, ?string $apiKey = null): string
     {
-        try {
-            $key = $apiKey ?? $this->apiKey ?? AppConfig::get('GEMINI_API_KEY');
-            if (!$key) {
-                Log::warning('GeminiService: no API key configured');
-                $this->lastRawResponse = 'No API key configured';
+        $maxRetries = 3;
+        $attempt = 0;
+
+        while ($attempt < $maxRetries) {
+            $attempt++;
+            try {
+                $key = $apiKey ?? $this->apiKey ?? AppConfig::get('GEMINI_API_KEY');
+                if (!$key) {
+                    Log::warning('GeminiService: no API key configured');
+                    $this->lastRawResponse = 'No API key configured';
+                    return '';
+                }
+
+                $response = Http::timeout(60)
+                    ->withoutVerifying()
+                    ->post(self::API_URL . '?key=' . $key, [
+                        'system_instruction' => [
+                            'parts' => [['text' => self::LINKEDIN_SYSTEM_PROMPT]],
+                        ],
+                        'contents' => $contents,
+                        'generationConfig' => [
+                            'temperature' => $temperature,
+                            'maxOutputTokens' => $maxTokens,
+                        ],
+                    ]);
+
+                if ($response->status() === 429 && $attempt < $maxRetries) {
+                    $body = $response->body();
+                    $delay = $this->parseRetryDelay($body) * $attempt;
+                    Log::warning("GeminiService: rate limited (attempt {$attempt}), retrying in {$delay}s");
+                    $this->lastRawResponse = "HTTP 429: rate limited, retrying in {$delay}s";
+                    sleep($delay);
+                    continue;
+                }
+
+                if ($response->failed()) {
+                    $body = $response->body();
+                    $this->lastRawResponse = "HTTP {$response->status()}: {$body}";
+                    Log::error("GeminiService: API request failed - status {$response->status()}: {$body}");
+                    return '';
+                }
+
+                $data = $response->json();
+                $this->lastRawResponse = json_encode($data);
+
+                $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+
+                if (empty($text)) {
+                    Log::warning('GeminiService: API returned empty text', ['response' => $data]);
+                }
+
+                return $text;
+            } catch (\Throwable $e) {
+                $this->lastRawResponse = 'Exception: ' . $e->getMessage();
+                Log::error('GeminiService: exception: ' . $e->getMessage());
                 return '';
             }
-            $response = Http::timeout(60)
-                ->withoutVerifying()
-                ->post(self::API_URL . '?key=' . $key, [
-                    'system_instruction' => [
-                        'parts' => [['text' => self::LINKEDIN_SYSTEM_PROMPT]],
-                    ],
-                    'contents' => $contents,
-                    'generationConfig' => [
-                        'temperature' => $temperature,
-                        'maxOutputTokens' => $maxTokens,
-                    ],
-                ]);
-
-            if ($response->failed()) {
-                $body = $response->body();
-                $this->lastRawResponse = "HTTP {$response->status()}: {$body}";
-                Log::error("GeminiService: API request failed - status {$response->status()}: {$body}");
-                return '';
-            }
-
-            $data = $response->json();
-            $this->lastRawResponse = json_encode($data);
-
-            $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-
-            if (empty($text)) {
-                Log::warning('GeminiService: API returned empty text', ['response' => $data]);
-            }
-
-            return $text;
-        } catch (\Throwable $e) {
-            $this->lastRawResponse = 'Exception: ' . $e->getMessage();
-            Log::error('GeminiService: exception: ' . $e->getMessage());
-            return '';
         }
+
+        return '';
     }
 
     public function generatePostContent(
