@@ -67,9 +67,7 @@ Route::get('/cron/scheduler', function (\Illuminate\Http\Request $req) {
     }
     \Illuminate\Support\Facades\Artisan::call('app:publish-scheduled');
     $output = \Illuminate\Support\Facades\Artisan::output();
-    $lines = explode("\n", trim($output));
-    $summary = end($lines);
-    return response($summary);
+    return response($output);
 })->name('cron.scheduler');
 
 Route::get('/debug/linkedin-status', function (\Illuminate\Http\Request $req) {
