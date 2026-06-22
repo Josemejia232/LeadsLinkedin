@@ -194,7 +194,7 @@ class LinkedInService
 
         $response = Http::withToken($accessToken)
             ->withHeaders(['LinkedIn-Version' => '202412'])
-            ->post(self::API_URL . '/rest/posts', [
+            ->post('https://api.linkedin.com/rest/posts', [
                 'author' => $urn,
                 'commentary' => $text,
                 'visibility' => 'PUBLIC',
