@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AppConfig;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class GeminiService
 {
@@ -24,6 +25,7 @@ class GeminiService
         try {
             $key = $apiKey ?? $this->apiKey ?? AppConfig::get('GEMINI_API_KEY');
             if (!$key) {
+                Log::warning('GeminiService: no API key configured');
                 return '';
             }
             $response = Http::timeout(60)
@@ -40,13 +42,22 @@ class GeminiService
                 ]);
 
             if ($response->failed()) {
+                $body = $response->body();
+                Log::error("GeminiService: API request failed - status {$response->status()}: {$body}");
                 return '';
             }
 
             $data = $response->json();
 
-            return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+            $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+
+            if (empty($text)) {
+                Log::warning('GeminiService: API returned empty text', ['response' => $data]);
+            }
+
+            return $text;
         } catch (\Throwable $e) {
+            Log::error('GeminiService: exception: ' . $e->getMessage());
             return '';
         }
     }
