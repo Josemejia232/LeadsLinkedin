@@ -28,7 +28,7 @@ class PublishScheduledPosts extends Command
         ]);
 
         if ($response->failed()) {
-            $this->error('Failed to fetch scheduled posts: ' . $response->body());
+            $this->line('[ERROR] Failed to fetch scheduled posts: ' . $response->body());
             return;
         }
 
@@ -54,7 +54,7 @@ class PublishScheduledPosts extends Command
             ]);
 
             if ($postRes->failed()) {
-                $this->error("Failed to fetch day_post {$postId}: " . $postRes->body());
+                $this->line("[ERROR] Failed to fetch day_post {$postId}: " . $postRes->body());
                 $failed++;
                 continue;
             }
@@ -97,7 +97,7 @@ class PublishScheduledPosts extends Command
                         'error_message' => $error,
                     ]);
                     $failed++;
-                    $this->error("Failed to publish post {$postId}: {$error}");
+                    $this->line("[ERROR] Failed to publish post {$postId}: {$error}");
                     continue;
                 }
 
@@ -132,7 +132,7 @@ class PublishScheduledPosts extends Command
                     'error_message' => $e->getMessage(),
                 ]);
                 $failed++;
-                $this->error("Exception publishing post {$postId}: {$e->getMessage()}");
+                $this->line("[ERROR] Exception publishing post {$postId}: {$e->getMessage()}");
             }
         }
 
