@@ -1,73 +1,17 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
-import { insforge } from '@/lib/insforge';
+import { Head, usePage } from '@inertiajs/react';
 
 export default function Dashboard() {
-    const [stats, setStats] = useState({
-        total_plans: 0,
-        total_posts: 0,
-        pending_posts: 0,
-        generated_posts: 0,
-        scheduled_posts: 0,
-        total_contacts: 0,
-    });
-    const [geminiConfigured, setGeminiConfigured] = useState(false);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        async function fetchStats() {
-            try {
-                const [plansRes, postsRes, contactsRes, configRes] = await Promise.all([
-                    insforge.database.from('monthly_plans').select('id', { count: 'exact', head: true }),
-                    insforge.database.from('day_posts').select('id, status'),
-                    insforge.database.from('contacts').select('id', { count: 'exact', head: true }),
-                    insforge.database.from('app_configs').select('*').eq('key', 'GEMINI_API_KEY'),
-                ]);
-
-                const totalPosts = postsRes.data?.length || 0;
-                const pendingPosts = postsRes.data?.filter(p => p.status === 'pending').length || 0;
-                const generatedPosts = postsRes.data?.filter(p => p.status === 'generated').length || 0;
-                const scheduledPosts = postsRes.data?.filter(p => p.status === 'scheduled').length || 0;
-
-                setStats({
-                    total_plans: plansRes.count || 0,
-                    total_posts: totalPosts,
-                    pending_posts: pendingPosts,
-                    generated_posts: generatedPosts,
-                    scheduled_posts: scheduledPosts,
-                    total_contacts: contactsRes.count || 0,
-                });
-
-                setGeminiConfigured(configRes.data?.length > 0);
-            } catch (err) {
-                console.error('Error fetching stats:', err);
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        fetchStats();
-    }, []);
+    const { stats, gemini_configured } = usePage().props;
 
     const statCards = [
-        { label: 'Total Planes', value: stats.total_plans, color: 'bg-indigo-600' },
-        { label: 'Total Posts', value: stats.total_posts, color: 'bg-blue-600' },
-        { label: 'Pendientes', value: stats.pending_posts, color: 'bg-yellow-500' },
-        { label: 'Generados', value: stats.generated_posts, color: 'bg-green-600' },
-        { label: 'Programados', value: stats.scheduled_posts, color: 'bg-purple-600' },
-        { label: 'Total Contactos', value: stats.total_contacts, color: 'bg-pink-600' },
+        { label: 'Total Planes', value: stats?.total_plans || 0, color: 'bg-indigo-600' },
+        { label: 'Total Posts', value: stats?.total_posts || 0, color: 'bg-blue-600' },
+        { label: 'Pendientes', value: stats?.pending_posts || 0, color: 'bg-yellow-500' },
+        { label: 'Generados', value: stats?.generated_posts || 0, color: 'bg-green-600' },
+        { label: 'Programados', value: stats?.scheduled_posts || 0, color: 'bg-purple-600' },
+        { label: 'Total Contactos', value: stats?.total_contacts || 0, color: 'bg-pink-600' },
     ];
-
-    if (loading) {
-        return (
-            <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Dashboard</h2>}>
-                <div className="py-12">
-                    <div className="mx-auto max-w-7xl px-4 text-center text-gray-500">Cargando dashboard...</div>
-                </div>
-            </AuthenticatedLayout>
-        );
-    }
 
     return (
         <AuthenticatedLayout
@@ -100,8 +44,8 @@ export default function Dashboard() {
                     </div>
 
                     <div className="mb-6 flex items-center justify-end">
-                        <span className="mr-2 text-sm text-gray-600">Gemini:</span>
-                        {geminiConfigured ? (
+                        <span className="mr-2 text-sm text-gray-600">AI:</span>
+                        {gemini_configured ? (
                             <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">
                                 <span className="mr-1.5 h-2 w-2 rounded-full bg-green-500"></span>
                                 Conectado

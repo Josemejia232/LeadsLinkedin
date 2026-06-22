@@ -1,97 +1,24 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
-import { insforge } from '@/lib/insforge';
+import { Head, useForm, usePage, Link } from '@inertiajs/react';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
 import PrimaryButton from '@/Components/PrimaryButton';
 
-export default function Settings() {
-    const [configs, setConfigs] = useState({});
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [flash, setFlash] = useState(null);
-    const [processing, setProcessing] = useState(false);
 
-    const [formData, setFormData] = useState({
-        gemini_key: '',
-        linkedin_client_id: '',
-        linkedin_client_secret: '',
+export default function Settings() {
+    const { gemini_key, gemini_configured, linkedin_client_id, linkedin_client_secret, linkedin_configured, linkedin_connected, linkedin_person_name, linkedin_oauth_url, flash } = usePage().props;
+
+    const { data, setData, post, processing, errors } = useForm({
+        gemini_key: gemini_key || '',
+        linkedin_client_id: linkedin_client_id || '',
+        linkedin_client_secret: linkedin_client_secret || '',
     });
 
-    useEffect(() => {
-        async function fetchConfigs() {
-            try {
-                const { data, error: fetchError } = await insforge.database
-                    .from('app_configs')
-                    .select('*');
-
-                if (fetchError) {
-                    setError(fetchError.message);
-                } else {
-                    const configMap = {};
-                    data?.forEach(c => { configMap[c.key] = c.value; });
-                    setConfigs(configMap);
-                    setFormData({
-                        gemini_key: configMap.GEMINI_API_KEY || '',
-                        linkedin_client_id: configMap.LINKEDIN_CLIENT_ID || '',
-                        linkedin_client_secret: configMap.LINKEDIN_CLIENT_SECRET || '',
-                    });
-                }
-            } catch (err) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        fetchConfigs();
-    }, []);
-
-    const handleSubmit = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
-        setProcessing(true);
-        setError(null);
-
-        try {
-            const updates = [
-                { key: 'GEMINI_API_KEY', value: formData.gemini_key },
-                { key: 'LINKEDIN_CLIENT_ID', value: formData.linkedin_client_id },
-                { key: 'LINKEDIN_CLIENT_SECRET', value: formData.linkedin_client_secret },
-            ];
-
-            for (const update of updates) {
-                const { error: upsertError } = await insforge.database
-                    .from('app_configs')
-                    .upsert([update], { onConflict: 'key' });
-
-                if (upsertError) {
-                    setError(upsertError.message);
-                    return;
-                }
-            }
-
-            setFlash({ success: 'Configuración guardada exitosamente.' });
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setProcessing(false);
-        }
+        post(route('settings.update'));
     };
-
-    const geminiConfigured = !!configs.GEMINI_API_KEY;
-    const linkedinConfigured = !!configs.LINKEDIN_CLIENT_ID && !!configs.LINKEDIN_CLIENT_SECRET;
-
-    if (loading) {
-        return (
-            <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Cargando...</h2>}>
-                <div className="py-12">
-                    <div className="mx-auto max-w-7xl px-4 text-center text-gray-500">Cargando configuración...</div>
-                </div>
-            </AuthenticatedLayout>
-        );
-    }
 
     return (
         <AuthenticatedLayout
@@ -104,16 +31,19 @@ export default function Settings() {
                     {flash?.success && (
                         <div className="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800">{flash.success}</div>
                     )}
-                    {error && (
-                        <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800">{error}</div>
+                    {flash?.error && (
+                        <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800">{flash.error}</div>
+                    )}
+                    {errors.submit && (
+                        <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800">{errors.submit}</div>
                     )}
 
                     <form onSubmit={handleSubmit}>
                         <div className="mb-8 overflow-hidden bg-white shadow sm:rounded-lg">
                             <div className="border-b border-gray-200 px-6 py-4">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-medium text-gray-900">Gemini AI</h3>
-                                    {geminiConfigured ? (
+                                    <h3 className="text-lg font-medium text-gray-900">OpenAI (Gemini)</h3>
+                                    {gemini_configured ? (
                                         <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">
                                             <span className="mr-1.5 h-2 w-2 rounded-full bg-green-500"></span>
                                             Conectado
@@ -128,15 +58,16 @@ export default function Settings() {
                             </div>
                             <div className="p-6">
                                 <div className="mb-4">
-                                    <InputLabel htmlFor="gemini_key" value="Gemini API Key" />
+                                    <InputLabel htmlFor="gemini_key" value="API Key (OpenAI / Gemini)" />
                                     <TextInput
                                         id="gemini_key"
                                         type="password"
-                                        value={formData.gemini_key}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, gemini_key: e.target.value }))}
+                                        value={data.gemini_key}
+                                        onChange={(e) => setData('gemini_key', e.target.value)}
                                         className="mt-1 block w-full"
-                                        placeholder="Ingresa tu API key de Gemini"
+                                        placeholder="Ingresa tu API key de OpenAI"
                                     />
+                                    <InputError message={errors.gemini_key} className="mt-2" />
                                 </div>
                             </div>
                         </div>
@@ -146,10 +77,15 @@ export default function Settings() {
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-lg font-medium text-gray-900">LinkedIn</h3>
                                     <div className="flex items-center gap-3">
-                                        {linkedinConfigured ? (
+                                        {linkedin_connected ? (
                                             <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">
                                                 <span className="mr-1.5 h-2 w-2 rounded-full bg-green-500"></span>
-                                                Configurado
+                                                Conectado como {linkedin_person_name}
+                                            </span>
+                                        ) : linkedin_configured ? (
+                                            <span className="inline-flex items-center rounded-full bg-yellow-100 px-3 py-1 text-sm font-medium text-yellow-800">
+                                                <span className="mr-1.5 h-2 w-2 rounded-full bg-yellow-500"></span>
+                                                Configurado — conectar
                                             </span>
                                         ) : (
                                             <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-800">
@@ -166,11 +102,12 @@ export default function Settings() {
                                     <TextInput
                                         id="linkedin_client_id"
                                         type="text"
-                                        value={formData.linkedin_client_id}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, linkedin_client_id: e.target.value }))}
+                                        value={data.linkedin_client_id}
+                                        onChange={(e) => setData('linkedin_client_id', e.target.value)}
                                         className="mt-1 block w-full"
                                         placeholder="Client ID de la app de LinkedIn"
                                     />
+                                    <InputError message={errors.linkedin_client_id} className="mt-2" />
                                 </div>
 
                                 <div className="mb-4">
@@ -178,12 +115,35 @@ export default function Settings() {
                                     <TextInput
                                         id="linkedin_client_secret"
                                         type="password"
-                                        value={formData.linkedin_client_secret}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, linkedin_client_secret: e.target.value }))}
+                                        value={data.linkedin_client_secret}
+                                        onChange={(e) => setData('linkedin_client_secret', e.target.value)}
                                         className="mt-1 block w-full"
                                         placeholder="Client Secret de la app de LinkedIn"
                                     />
+                                    <InputError message={errors.linkedin_client_secret} className="mt-2" />
                                 </div>
+
+                                {linkedin_configured && !linkedin_connected && (
+                                    <div className="mt-4">
+                                        <Link
+                                            href={linkedin_oauth_url || route('publisher.linkedin-login')}
+                                            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-blue-500"
+                                        >
+                                            Conectar LinkedIn
+                                        </Link>
+                                    </div>
+                                )}
+
+                                {linkedin_connected && (
+                                    <div className="mt-4">
+                                        <Link
+                                            href={route('publisher.linkedin-disconnect')}
+                                            className="inline-flex items-center rounded-md border border-red-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-red-700 transition hover:bg-red-50"
+                                        >
+                                            Desconectar LinkedIn
+                                        </Link>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

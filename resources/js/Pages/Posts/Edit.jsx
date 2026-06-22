@@ -1,7 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
-import { useState, useRef, useEffect } from 'react';
-import { insforge } from '@/lib/insforge';
+import { Head, Link, useForm, usePage, router } from '@inertiajs/react';
+import { useState, useRef } from 'react';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
@@ -19,10 +18,6 @@ function getStrategicHours(dateStr) {
     return STRATEGIC_HOURS_MAP[d.getDay()] || [];
 }
 
-function formatHour(h) {
-    return h.toString().padStart(2, '0') + ':00';
-}
-
 function hourLabel(h) {
     if (h < 12) return `${h}:00 AM`;
     if (h === 12) return '12:00 PM';
@@ -38,188 +33,77 @@ function buildHours(strategic) {
     return hours;
 }
 
-export default function PostsEdit({ postId }) {
-    const [post, setPost] = useState(null);
-    const [scheduledPost, setScheduledPost] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [flash, setFlash] = useState(null);
+export default function PostsEdit() {
+    const { post, scheduledPost, flash } = usePage().props;
     const [uploading, setUploading] = useState(false);
-    const [processing, setProcessing] = useState(false);
-    const [scheduleProcessing, setScheduleProcessing] = useState(false);
     const fileInputRef = useRef(null);
 
-    const [formData, setFormData] = useState({
-        title: '',
-        text_content: '',
-        hashtags: '',
-        call_to_action: '',
+    const { data, setData, put, processing, errors } = useForm({
+        title: post.title || '',
+        text_content: post.text_content || '',
+        hashtags: post.hashtags || '',
+        call_to_action: post.call_to_action || '',
     });
-    const [scheduledDate, setScheduledDate] = useState('');
 
-    useEffect(() => {
-        async function fetchData() {
-            try {
-                const { data: postData, error: postError } = await insforge.database
-                    .from('day_posts')
-                    .select('*')
-                    .eq('id', postId)
-                    .single();
-
-                if (postError) {
-                    setError(postError.message);
-                    return;
-                }
-
-                setPost(postData);
-                setFormData({
-                    title: postData.title || '',
-                    text_content: postData.text_content || '',
-                    hashtags: postData.hashtags || '',
-                    call_to_action: postData.call_to_action || '',
-                });
-
-                const { data: schedData } = await insforge.database
-                    .from('scheduled_posts')
-                    .select('*')
-                    .eq('day_post_id', postId)
-                    .single();
-
-                if (schedData) {
-                    setScheduledPost(schedData);
-                    const d = new Date(schedData.scheduled_date);
-                    const local = d.toLocaleString('sv-SE', { timeZone: 'America/Bogota' }).replace(' ', 'T').slice(0, 16);
-                    setScheduledDate(local);
-                }
-            } catch (err) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
+    const [scheduleDate, setScheduleDate] = useState(() => {
+        if (scheduledPost?.scheduled_date) {
+            const d = new Date(scheduledPost.scheduled_date);
+            return d.toLocaleString('sv-SE', { timeZone: 'America/Bogota' }).replace(' ', 'T').slice(0, 16);
         }
-
-        fetchData();
-    }, [postId]);
+        return '';
+    });
+    const [scheduleProcessing, setScheduleProcessing] = useState(false);
 
     const postDate = post?.date ? new Date(post.date).toISOString().split('T')[0] : '';
     const strategicHours = getStrategicHours(post?.date);
     const allHours = buildHours(strategicHours);
     const currentHour = scheduledPost?.scheduled_date ? new Date(scheduledPost.scheduled_date).getHours() : 10;
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
-        setProcessing(true);
-        setError(null);
-
-        try {
-            const { error: updateError } = await insforge.database
-                .from('day_posts')
-                .update({
-                    title: formData.title,
-                    text_content: formData.text_content,
-                    hashtags: formData.hashtags,
-                    call_to_action: formData.call_to_action,
-                })
-                .eq('id', postId);
-
-            if (updateError) {
-                setError(updateError.message);
-            } else {
-                setFlash({ success: 'Publicación actualizada.' });
-            }
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setProcessing(false);
-        }
+        put(route('posts.update', post.id));
     };
 
     const handleScheduleSubmit = async () => {
         setScheduleProcessing(true);
-        setError(null);
-
         try {
-            const payload = {
-                day_post_id: postId,
-                scheduled_date: new Date(scheduledDate).toISOString(),
-                status: 'scheduled',
-            };
-
-            if (scheduledPost?.id) {
-                const { error: schedError } = await insforge.database
-                    .from('scheduled_posts')
-                    .update(payload)
-                    .eq('id', scheduledPost.id);
-
-                if (schedError) {
-                    setError(schedError.message);
-                    return;
-                }
-            } else {
-                const { error: schedError } = await insforge.database
-                    .from('scheduled_posts')
-                    .insert([payload]);
-
-                if (schedError) {
-                    setError(schedError.message);
-                    return;
-                }
-            }
-
-            setScheduledPost({ ...scheduledPost, scheduled_date: scheduledDate, status: 'scheduled' });
-            setFlash({ success: 'Horario actualizado.' });
+            await fetch(route('posts.schedule', post.id), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ scheduled_date: new Date(scheduleDate).toISOString() }),
+            });
+            window.location.reload();
         } catch (err) {
-            setError(err.message);
+            console.error(err);
         } finally {
             setScheduleProcessing(false);
         }
     };
 
     const handleHourChange = (hour) => {
-        const newDate = postDate + 'T' + formatHour(hour);
-        setScheduledDate(newDate);
+        const newDate = postDate + 'T' + hour.toString().padStart(2, '0') + ':00';
+        setScheduleDate(newDate);
     };
 
-    function convertToWebP(file, quality = 0.8) {
+    function toWebP(file) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                canvas.toBlob((blob) => {
-                    if (blob) {
-                        const name = file.name.replace(/\.[^.]+$/, '') + '.webp';
-                        resolve(new File([blob], name, { type: 'image/webp' }));
-                    } else {
-                        reject(new Error('Error al convertir a WebP'));
-                    }
-                }, 'image/webp', quality);
+                const c = document.createElement('canvas');
+                c.width = img.width;
+                c.height = img.height;
+                c.getContext('2d').drawImage(img, 0, 0);
+                c.toBlob((blob) => {
+                    const r = new FileReader();
+                    r.onload = () => resolve(r.result);
+                    r.onerror = reject;
+                    r.readAsDataURL(blob);
+                }, 'image/webp', 0.8);
             };
-            img.onerror = () => reject(new Error('Error al cargar la imagen'));
+            img.onerror = reject;
             img.src = URL.createObjectURL(file);
         });
     }
-
-    const toWebP = (file) => new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            const c = document.createElement('canvas');
-            c.width = img.width;
-            c.height = img.height;
-            c.getContext('2d').drawImage(img, 0, 0);
-            c.toBlob((blob) => {
-                const r = new FileReader();
-                r.onload = () => resolve(r.result);
-                r.onerror = reject;
-                r.readAsDataURL(blob);
-            }, 'image/webp', 0.8);
-        };
-        img.onerror = reject;
-        img.src = URL.createObjectURL(file);
-    });
 
     const handleImageUpload = async (e) => {
         const file = e.target.files[0];
@@ -228,35 +112,21 @@ export default function PostsEdit({ postId }) {
         setUploading(true);
         try {
             const dataUrl = await toWebP(file);
-
             const res = await fetch('/api/upload-post-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ post_id: postId, image: dataUrl }),
+                body: JSON.stringify({ post_id: post.id, image: dataUrl }),
             });
             const result = await res.json();
-
             if (result.url) {
-                setPost(prev => ({ ...prev, image_url: result.url }));
-            } else {
-                setError(result.error || 'Error al subir imagen');
+                window.location.reload();
             }
         } catch (err) {
-            setError(err.message);
+            console.error(err);
         } finally {
             setUploading(false);
         }
     };
-
-    if (loading) {
-        return (
-            <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Cargando...</h2>}>
-                <div className="py-12">
-                    <div className="mx-auto max-w-7xl px-4 text-center text-gray-500">Cargando publicación...</div>
-                </div>
-            </AuthenticatedLayout>
-        );
-    }
 
     return (
         <AuthenticatedLayout
@@ -279,8 +149,8 @@ export default function PostsEdit({ postId }) {
                     {flash?.success && (
                         <div className="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800">{flash.success}</div>
                     )}
-                    {error && (
-                        <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800">{error}</div>
+                    {errors.submit && (
+                        <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800">{errors.submit}</div>
                     )}
 
                     <div className="overflow-hidden bg-white shadow sm:rounded-lg">
@@ -290,8 +160,8 @@ export default function PostsEdit({ postId }) {
                                 <TextInput
                                     id="title"
                                     type="text"
-                                    value={formData.title}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                                    value={data.title}
+                                    onChange={(e) => setData('title', e.target.value)}
                                     className="mt-1 block w-full"
                                     required
                                 />
@@ -302,8 +172,8 @@ export default function PostsEdit({ postId }) {
                                 <textarea
                                     id="text_content"
                                     rows={12}
-                                    value={formData.text_content}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, text_content: e.target.value }))}
+                                    value={data.text_content}
+                                    onChange={(e) => setData('text_content', e.target.value)}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                                 />
                             </div>
@@ -313,8 +183,8 @@ export default function PostsEdit({ postId }) {
                                 <TextInput
                                     id="hashtags"
                                     type="text"
-                                    value={formData.hashtags}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, hashtags: e.target.value }))}
+                                    value={data.hashtags}
+                                    onChange={(e) => setData('hashtags', e.target.value)}
                                     className="mt-1 block w-full"
                                     placeholder="#hashtag1 #hashtag2"
                                 />
@@ -325,15 +195,15 @@ export default function PostsEdit({ postId }) {
                                 <textarea
                                     id="call_to_action"
                                     rows={3}
-                                    value={formData.call_to_action}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, call_to_action: e.target.value }))}
+                                    value={data.call_to_action}
+                                    onChange={(e) => setData('call_to_action', e.target.value)}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                                 />
                             </div>
 
                             {scheduledPost && (
                                 <div className="mb-6 rounded-lg border border-purple-200 bg-purple-50 p-4">
-                                    <div className="flex items-center justify-between mb-3">
+                                    <div className="mb-3 flex items-center justify-between">
                                         <div>
                                             <InputLabel value="Horario de Publicación" />
                                             <p className="mt-0.5 text-xs text-purple-600">
@@ -396,7 +266,7 @@ export default function PostsEdit({ postId }) {
                             />
 
                             {post?.image_url ? (
-                                <div className="mt-3 relative group">
+                                <div className="group relative mt-3">
                                     <img
                                         src={post.image_url}
                                         alt="Preview"

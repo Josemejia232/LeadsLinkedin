@@ -1,30 +1,24 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
-import { insforge } from '@/lib/insforge';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
 import PrimaryButton from '@/Components/PrimaryButton';
 
-export default function PlansEdit({ planId }) {
-    const [plan, setPlan] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [flash, setFlash] = useState(null);
-    const [formData, setFormData] = useState({
-        topic_name: '',
-        industry: '',
-        keywords: '',
-        objectives: '',
-        target_audience: '',
-        month: '',
-        year: new Date().getFullYear(),
-        total_posts: 10,
-        schedule_hours: [8, 9, 10, 11, 12, 14, 15, 16, 17, 18],
+export default function PlansEdit() {
+    const { plan } = usePage().props;
+
+    const { data, setData, put, processing, errors } = useForm({
+        topic_name: plan.topic_name || '',
+        industry: plan.industry || '',
+        keywords: plan.keywords || '',
+        objectives: plan.objectives || '',
+        target_audience: plan.target_audience || '',
+        month: plan.month || '',
+        year: plan.year || new Date().getFullYear(),
+        total_posts: plan.total_posts || 10,
+        schedule_hours: plan.schedule_hours || [8, 9, 10, 11, 12, 14, 15, 16, 17, 18],
     });
-    const [errors, setErrors] = useState({});
-    const [processing, setProcessing] = useState(false);
 
     const currentYear = new Date().getFullYear();
     const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -43,92 +37,19 @@ export default function PlansEdit({ planId }) {
         { value: 12, label: 'Diciembre' },
     ];
 
-    useEffect(() => {
-        async function fetchPlan() {
-            try {
-                const { data, error: fetchError } = await insforge.database
-                    .from('monthly_plans')
-                    .select('*')
-                    .eq('id', planId)
-                    .single();
-
-                if (fetchError) {
-                    setError(fetchError.message);
-                } else {
-                    setPlan(data);
-                    setFormData({
-                        topic_name: data.topic_name || '',
-                        industry: data.industry || '',
-                        keywords: data.keywords || '',
-                        objectives: data.objectives || '',
-                        target_audience: data.target_audience || '',
-                        month: data.month || '',
-                        year: data.year || currentYear,
-                        total_posts: data.total_posts || 10,
-                        schedule_hours: data.schedule_hours || [8, 9, 10, 11, 12, 14, 15, 16, 17, 18],
-                    });
-                }
-            } catch (err) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        fetchPlan();
-    }, [planId]);
-
     const toggleHour = (hour) => {
-        const current = formData.schedule_hours;
+        const current = data.schedule_hours;
         const updated = current.includes(hour)
             ? current.filter((h) => h !== hour)
             : [...current, hour].sort((a, b) => a - b);
-        setFormData(prev => ({ ...prev, schedule_hours: updated }));
+        setData('schedule_hours', updated);
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
-        setProcessing(true);
-        setErrors({});
-
-        try {
-            const { error: updateError } = await insforge.database
-                .from('monthly_plans')
-                .update({
-                    topic_name: formData.topic_name,
-                    industry: formData.industry || null,
-                    keywords: formData.keywords || null,
-                    objectives: formData.objectives || null,
-                    target_audience: formData.target_audience || null,
-                    month: parseInt(formData.month),
-                    year: parseInt(formData.year),
-                    total_posts: parseInt(formData.total_posts),
-                    schedule_hours: formData.schedule_hours,
-                })
-                .eq('id', planId);
-
-            if (updateError) {
-                setErrors({ submit: updateError.message });
-            } else {
-                setFlash({ success: 'Plan actualizado exitosamente.' });
-                window.location.href = route('plans.show', planId);
-            }
-        } catch (err) {
-            setErrors({ submit: err.message });
-        } finally {
-            setProcessing(false);
-        }
+        if (data.schedule_hours.length === 0) return;
+        put(route('plans.update', plan.id));
     };
-
-    if (loading) {
-        return (
-            <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Cargando...</h2>}>
-                <div className="py-12">
-                    <div className="mx-auto max-w-7xl px-4 text-center text-gray-500">Cargando plan...</div>
-                </div>
-            </AuthenticatedLayout>
-        );
-    }
 
     return (
         <AuthenticatedLayout
@@ -137,7 +58,7 @@ export default function PlansEdit({ planId }) {
                     <h2 className="text-xl font-semibold leading-tight text-gray-800">Editar Plan Mensual</h2>
                     <div className="flex gap-2">
                         <Link
-                            href={route('plans.show', planId)}
+                            href={route('plans.show', plan.id)}
                             className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-700 shadow-sm transition hover:bg-gray-50"
                         >
                             Ver Plan
@@ -156,9 +77,6 @@ export default function PlansEdit({ planId }) {
 
             <div className="py-12">
                 <div className="mx-auto max-w-3xl sm:px-6 lg:px-8">
-                    {flash?.success && (
-                        <div className="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800">{flash.success}</div>
-                    )}
                     {errors.submit && (
                         <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800">{errors.submit}</div>
                     )}
@@ -172,8 +90,8 @@ export default function PlansEdit({ planId }) {
                                 <TextInput
                                     id="topic_name"
                                     type="text"
-                                    value={formData.topic_name}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, topic_name: e.target.value }))}
+                                    value={data.topic_name}
+                                    onChange={(e) => setData('topic_name', e.target.value)}
                                     className="mt-1 block w-full"
                                     required
                                     placeholder="Ej: Marketing Digital 2024"
@@ -186,8 +104,8 @@ export default function PlansEdit({ planId }) {
                                 <TextInput
                                     id="industry"
                                     type="text"
-                                    value={formData.industry}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, industry: e.target.value }))}
+                                    value={data.industry}
+                                    onChange={(e) => setData('industry', e.target.value)}
                                     className="mt-1 block w-full"
                                     placeholder="Ej: Tecnología, Salud, Finanzas"
                                 />
@@ -198,8 +116,8 @@ export default function PlansEdit({ planId }) {
                                 <InputLabel htmlFor="keywords" value="Palabras Clave" />
                                 <textarea
                                     id="keywords"
-                                    value={formData.keywords}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, keywords: e.target.value }))}
+                                    value={data.keywords}
+                                    onChange={(e) => setData('keywords', e.target.value)}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                     rows="2"
                                     placeholder="marketing, redes sociales, contenido digital"
@@ -211,8 +129,8 @@ export default function PlansEdit({ planId }) {
                                 <InputLabel htmlFor="objectives" value="Objetivos" />
                                 <textarea
                                     id="objectives"
-                                    value={formData.objectives}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, objectives: e.target.value }))}
+                                    value={data.objectives}
+                                    onChange={(e) => setData('objectives', e.target.value)}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                     rows="2"
                                     placeholder="Aumentar visibilidad, generar leads, educar al mercado"
@@ -224,8 +142,8 @@ export default function PlansEdit({ planId }) {
                                 <InputLabel htmlFor="target_audience" value="Audiencia Objetivo" />
                                 <textarea
                                     id="target_audience"
-                                    value={formData.target_audience}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, target_audience: e.target.value }))}
+                                    value={data.target_audience}
+                                    onChange={(e) => setData('target_audience', e.target.value)}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                     rows="2"
                                     placeholder="Profesionales de marketing, dueños de pymes, emprendedores"
@@ -242,8 +160,8 @@ export default function PlansEdit({ planId }) {
                                     <InputLabel htmlFor="month" value="Mes" />
                                     <select
                                         id="month"
-                                        value={formData.month}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, month: e.target.value }))}
+                                        value={data.month}
+                                        onChange={(e) => setData('month', e.target.value)}
                                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                         required
                                     >
@@ -259,8 +177,8 @@ export default function PlansEdit({ planId }) {
                                     <InputLabel htmlFor="year" value="Año" />
                                     <select
                                         id="year"
-                                        value={formData.year}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, year: e.target.value }))}
+                                        value={data.year}
+                                        onChange={(e) => setData('year', e.target.value)}
                                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                         required
                                     >
@@ -276,8 +194,8 @@ export default function PlansEdit({ planId }) {
                                     <TextInput
                                         id="total_posts"
                                         type="number"
-                                        value={formData.total_posts}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, total_posts: e.target.value }))}
+                                        value={data.total_posts}
+                                        onChange={(e) => setData('total_posts', e.target.value)}
                                         className="mt-1 block w-full"
                                         min="1"
                                         max="31"
@@ -297,7 +215,7 @@ export default function PlansEdit({ planId }) {
 
                             <div className="mb-6 grid grid-cols-6 gap-2 sm:grid-cols-8 md:grid-cols-12">
                                 {Array.from({ length: 24 }, (_, i) => {
-                                    const selected = formData.schedule_hours.includes(i);
+                                    const selected = data.schedule_hours.includes(i);
                                     return (
                                         <button
                                             key={i}
@@ -314,12 +232,12 @@ export default function PlansEdit({ planId }) {
                                     );
                                 })}
                             </div>
-                            {formData.schedule_hours.length === 0 && (
+                            {data.schedule_hours.length === 0 && (
                                 <p className="mb-4 text-sm text-red-500">Selecciona al menos un horario.</p>
                             )}
 
                             <div className="flex items-center justify-end">
-                                <PrimaryButton disabled={processing || formData.schedule_hours.length === 0}>
+                                <PrimaryButton disabled={processing || data.schedule_hours.length === 0}>
                                     {processing ? 'Actualizando...' : 'Actualizar Plan'}
                                 </PrimaryButton>
                             </div>
