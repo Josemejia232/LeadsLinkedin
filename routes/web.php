@@ -76,25 +76,3 @@ Route::get('/cron/scheduler', function (\Illuminate\Http\Request $req) {
     return response($summary);
 })->name('cron.scheduler');
 
-Route::get('/debug/linkedin-status', function (\Illuminate\Http\Request $req) {
-    if ($req->query('token') !== 's3cr3t-publish-cron') {
-        abort(401);
-    }
-    $token = \App\Models\AppConfig::get('LINKEDIN_ACCESS_TOKEN');
-    $expires = \App\Models\AppConfig::get('LINKEDIN_TOKEN_EXPIRES_AT');
-    $person = \App\Models\AppConfig::get('LINKEDIN_PERSON_NAME');
-    $hasRefresh = \App\Models\AppConfig::get('LINKEDIN_REFRESH_TOKEN');
-    $clientId = \App\Models\AppConfig::get('LINKEDIN_CLIENT_ID');
-    $clientSecret = \App\Models\AppConfig::get('LINKEDIN_CLIENT_SECRET');
-
-    return response()->json([
-        'has_token' => !empty($token),
-        'token_prefix' => $token ? substr($token, 0, 10) . '...' : null,
-        'expires_at' => $expires ? date('Y-m-d H:i:s', (int)$expires) : null,
-        'is_expired' => $expires ? ((int)$expires < time()) : null,
-        'person' => $person,
-        'has_refresh_token' => !empty($hasRefresh),
-        'has_client_id' => !empty($clientId),
-        'has_client_secret' => !empty($clientSecret),
-    ]);
-});
