@@ -67,7 +67,11 @@ export default function PlansShow({ planId }) {
         setGeneratingTitles(true);
         setError(null);
         try {
-            const res = await fetch('/api/ai/generate-titles?plan_id=' + planId);
+            const res = await fetch('/api/ai/generate-titles', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan_id: planId }),
+            });
             const result = await res.json();
             if (result.success) {
                 setFlash({ success: `${result.created} títulos generados exitosamente.` });
@@ -87,7 +91,11 @@ export default function PlansShow({ planId }) {
         setGeneratingContent(true);
         setError(null);
         try {
-            const res = await fetch('/api/ai/generate-plan-content?plan_id=' + planId);
+            const res = await fetch('/api/ai/generate-plan-content', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan_id: planId }),
+            });
             const result = await res.json();
             if (result.success) {
                 setFlash({ success: `Contenido generado para ${result.generated} de ${result.total} posts.` });
@@ -106,7 +114,11 @@ export default function PlansShow({ planId }) {
         setGeneratingPostContent(postId);
         setError(null);
         try {
-            const res = await fetch('/api/ai/generate-post-content?post_id=' + postId);
+            const res = await fetch('/api/ai/generate-post-content', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: postId }),
+            });
             const result = await res.json();
             if (result.success) {
                 setPosts(prev => prev.map(p =>
@@ -225,7 +237,11 @@ export default function PlansShow({ planId }) {
                 const missingHashtags = !post.hashtags;
                 if (missingCta || missingHashtags) {
                     try {
-                        const res = await fetch('/api/ai/generate-missing-fields?post_id=' + postId);
+                        const res = await fetch('/api/ai/generate-missing-fields', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ post_id: postId }),
+                        });
                         const result = await res.json();
                         setPosts(prev => prev.map(p =>
                             p.id === postId

@@ -35,17 +35,9 @@ class SettingsController extends Controller
             'linkedin_client_secret' => 'nullable|string',
         ]);
 
-        if ($request->filled('gemini_key')) {
-            AppConfig::set('GEMINI_API_KEY', $request->gemini_key);
-        }
-
-        if ($request->filled('linkedin_client_id')) {
-            AppConfig::set('LINKEDIN_CLIENT_ID', $request->linkedin_client_id);
-        }
-
-        if ($request->filled('linkedin_client_secret')) {
-            AppConfig::set('LINKEDIN_CLIENT_SECRET', $request->linkedin_client_secret);
-        }
+        AppConfig::set('GEMINI_API_KEY', $request->gemini_key ?? '');
+        AppConfig::set('LINKEDIN_CLIENT_ID', $request->linkedin_client_id ?? '');
+        AppConfig::set('LINKEDIN_CLIENT_SECRET', $request->linkedin_client_secret ?? '');
 
         return redirect()->back()->with('success', 'Settings saved successfully.');
     }

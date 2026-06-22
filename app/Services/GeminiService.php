@@ -43,7 +43,6 @@ class GeminiService
                 }
 
                 $response = Http::timeout(60)
-                    ->withoutVerifying()
                     ->withToken($key)
                     ->post(self::API_URL, [
                         'model' => self::MODEL,

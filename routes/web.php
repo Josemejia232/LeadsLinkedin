@@ -54,10 +54,10 @@ Route::get('/contacts/{contact}/edit', function ($contact) {
     return inertia('Contacts/Edit', ['contactId' => $contact]);
 })->name('contacts.edit');
 
-Route::get('/api/ai/generate-titles', [App\Http\Controllers\Api\AiController::class, 'generateTitles']);
-Route::get('/api/ai/generate-plan-content', [App\Http\Controllers\Api\AiController::class, 'generatePlanContent']);
-Route::get('/api/ai/generate-missing-fields', [App\Http\Controllers\Api\AiController::class, 'generateMissingFields']);
-Route::get('/api/ai/generate-post-content', [App\Http\Controllers\Api\AiController::class, 'generatePostContentSingle']);
+Route::post('/api/ai/generate-titles', [App\Http\Controllers\Api\AiController::class, 'generateTitles']);
+Route::post('/api/ai/generate-plan-content', [App\Http\Controllers\Api\AiController::class, 'generatePlanContent']);
+Route::post('/api/ai/generate-missing-fields', [App\Http\Controllers\Api\AiController::class, 'generateMissingFields']);
+Route::post('/api/ai/generate-post-content', [App\Http\Controllers\Api\AiController::class, 'generatePostContentSingle']);
 Route::get('/api/ai/current-plan', [App\Http\Controllers\Api\AiController::class, 'currentPlan']);
 Route::post('/api/upload-post-image', [App\Http\Controllers\Api\AiController::class, 'uploadPostImage']);
 
@@ -66,7 +66,11 @@ Route::get('/publisher/linkedin/callback', [App\Http\Controllers\PublisherContro
 Route::get('/publisher/linkedin/disconnect', [App\Http\Controllers\PublisherController::class, 'linkedinDisconnect'])->name('publisher.linkedin-disconnect');
 
 Route::get('/cron/scheduler', function (\Illuminate\Http\Request $req) {
-    if ($req->query('token') !== 's3cr3t-publish-cron') {
+    $cronToken = getenv('CRON_TOKEN');
+    if ($cronToken === false || $cronToken === '') {
+        $cronToken = 's3cr3t-publish-cron';
+    }
+    if ($req->query('token') !== $cronToken) {
         abort(401);
     }
     \Illuminate\Support\Facades\Artisan::call('app:publish-scheduled');

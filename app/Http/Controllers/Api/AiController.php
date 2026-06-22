@@ -9,9 +9,16 @@ use Illuminate\Support\Facades\Http;
 
 class AiController extends Controller
 {
-    private string $baseUrl = 'https://w66d8gas.us-east.insforge.app';
-    private string $anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NzkzMTR9.Cors_ettZF-ufE9Ky1MhKWaYTdD4OP4IzLGx_iMRiiQ';
-    private string $adminKey = 'ik_31ff2d2223e646df22d21e93a9c9346f';
+    private string $baseUrl;
+    private string $anonKey;
+    private string $adminKey;
+
+    public function __construct()
+    {
+        $this->baseUrl = getenv('VITE_INSFORGE_URL') ?: 'https://w66d8gas.us-east.insforge.app';
+        $this->anonKey = getenv('INSFORGE_ANON_KEY') ?: 'VITE_INSFORGE_ANON_KEY';
+        $this->adminKey = getenv('INSFORGE_ADMIN_KEY') ?: 'INSFORGE_ADMIN_KEY';
+    }
 
     public function currentPlan()
     {
@@ -32,8 +39,8 @@ class AiController extends Controller
     public function generateTitles(Request $request)
     {
         try {
-            $planId = $request->query('plan_id');
-            if (!$planId) {
+            $planId = $request->input('plan_id') ?: $request->query('plan_id');
+            if (!$planId || !is_numeric($planId)) {
                 return response()->json(['error' => 'plan_id required'], 400);
             }
 
@@ -76,7 +83,7 @@ class AiController extends Controller
                 $postType = $postTypes[$i % count($postTypes)];
 
                 $this->createPost([
-                    'plan_id' => (int) $planId,
+                    'plan_id' => (int) $planId ?: 0,
                     'date' => $weekdays[$dayIndex]->format('Y-m-d'),
                     'title' => $title,
                     'post_type' => $postType,
@@ -98,8 +105,8 @@ class AiController extends Controller
     public function generatePlanContent(Request $request)
     {
         try {
-            $planId = $request->query('plan_id');
-            if (!$planId) {
+            $planId = $request->input('plan_id') ?: $request->query('plan_id');
+            if (!$planId || !is_numeric($planId)) {
                 return response()->json(['error' => 'plan_id required'], 400);
             }
 
@@ -166,8 +173,8 @@ class AiController extends Controller
     public function generateMissingFields(Request $request)
     {
         try {
-            $postId = $request->query('post_id');
-            if (!$postId) {
+            $postId = $request->input('post_id') ?: $request->query('post_id');
+            if (!$postId || !is_numeric($postId)) {
                 return response()->json(['error' => 'post_id required'], 400);
             }
 
@@ -214,8 +221,8 @@ class AiController extends Controller
     public function generatePostContentSingle(Request $request)
     {
         try {
-            $postId = $request->query('post_id');
-            if (!$postId) {
+            $postId = $request->input('post_id') ?: $request->query('post_id');
+            if (!$postId || !is_numeric($postId)) {
                 return response()->json(['error' => 'post_id required'], 400);
             }
 

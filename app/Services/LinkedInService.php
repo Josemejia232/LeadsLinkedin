@@ -33,7 +33,7 @@ class LinkedInService
 
     public function exchangeCodeForToken(string $code, string $redirectUri): array
     {
-        $response = Http::withoutVerifying()->asForm()->post(self::TOKEN_URL, [
+        $response = Http::asForm()->post(self::TOKEN_URL, [
             'grant_type' => 'authorization_code',
             'code' => $code,
             'client_id' => AppConfig::get('LINKEDIN_CLIENT_ID'),
@@ -41,33 +41,45 @@ class LinkedInService
             'redirect_uri' => $redirectUri,
         ]);
 
+        if ($response->failed()) {
+            throw new \RuntimeException('LinkedIn token exchange failed: ' . ($response->json()['error_description'] ?? $response->body()));
+        }
+
         return $response->json();
     }
 
     public function refreshAccessToken(string $refreshToken): array
     {
-        $response = Http::withoutVerifying()->asForm()->post(self::TOKEN_URL, [
+        $response = Http::asForm()->post(self::TOKEN_URL, [
             'grant_type' => 'refresh_token',
             'refresh_token' => $refreshToken,
             'client_id' => AppConfig::get('LINKEDIN_CLIENT_ID'),
             'client_secret' => AppConfig::get('LINKEDIN_CLIENT_SECRET'),
         ]);
 
+        if ($response->failed()) {
+            throw new \RuntimeException('LinkedIn token refresh failed: ' . ($response->json()['error_description'] ?? $response->body()));
+        }
+
         return $response->json();
     }
 
     public function getUserInfo(string $accessToken): array
     {
-        $response = Http::withoutVerifying()->withToken($accessToken)
+        $response = Http::withToken($accessToken)
             ->get(self::API_URL . '/userinfo');
+
+        if ($response->failed()) {
+            throw new \RuntimeException('LinkedIn userinfo failed: ' . $response->body());
+        }
 
         return $response->json();
     }
 
     public function getMe(string $accessToken): array
     {
-        $response = Http::withoutVerifying()->withToken($accessToken)
-            ->withHeaders(['LinkedIn-Version' => '202304'])
+        $response = Http::withToken($accessToken)
+            ->withHeaders(['LinkedIn-Version' => '202412'])
             ->get(self::API_URL . '/me');
 
         return $response->json();
@@ -180,25 +192,30 @@ class LinkedInService
     {
         $urn = "urn:li:person:{$personId}";
 
-        $response = Http::withoutVerifying()->withToken($accessToken)
-            ->post(self::API_URL . '/ugcPosts', [
+        $response = Http::withToken($accessToken)
+            ->withHeaders(['LinkedIn-Version' => '202412'])
+            ->post(self::API_URL . '/rest/posts', [
                 'author' => $urn,
+                'commentary' => $text,
+                'visibility' => 'PUBLIC',
                 'lifecycleState' => 'PUBLISHED',
-                'specificContent' => [
-                    'com.linkedin.ugc.ShareContent' => [
-                        'shareCommentary' => [
-                            'text' => $text,
-                        ],
-                        'shareMediaCategory' => 'NONE',
-                    ],
-                ],
-                'visibility' => [
-                    'com.linkedin.ugc.MemberNetworkVisibility' => 'PUBLIC',
+                'distribution' => [
+                    'feedDistribution' => 'MAIN_FEED',
+                    'targetEntities' => [],
+                    'thirdPartyDistributionChannels' => [],
                 ],
             ]);
 
         $body = $response->json();
         $postId = $body['id'] ?? '';
+
+        if ($response->failed() && empty($postId)) {
+            return [
+                'postId' => '',
+                'responseData' => $body,
+                'statusCode' => $response->status(),
+            ];
+        }
 
         return [
             'postId' => $postId,

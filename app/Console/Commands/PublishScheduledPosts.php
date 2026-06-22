@@ -9,20 +9,31 @@ use Illuminate\Support\Facades\Http;
 class PublishScheduledPosts extends Command
 {
     protected $signature = 'app:publish-scheduled';
-    protected $description = 'Publish posts that are due for scheduled publishing';
+    protected $description = 'Publish scheduled posts to LinkedIn';
 
-    private string $baseUrl = 'https://w66d8gas.us-east.insforge.app';
-    private string $anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NzkzMTR9.Cors_ettZF-ufE9Ky1MhKWaYTdD4OP4IzLGx_iMRiiQ';
+    private string $baseUrl;
+    private string $anonKey;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->baseUrl = getenv('VITE_INSFORGE_URL') ?: 'https://w66d8gas.us-east.insforge.app';
+        $this->anonKey = getenv('INSFORGE_ANON_KEY') ?: '';
+    }
+
+    private function api(): \Illuminate\Http\Client\PendingRequest
+    {
+        return Http::withHeaders([
+            'apikey' => $this->anonKey,
+            'Authorization' => 'Bearer ' . $this->anonKey,
+        ]);
+    }
 
     public function handle(): void
     {
-        $now = gmdate('Y-m-d\TH:i:s\Z');
-        $response = Http::withHeaders([
-            'apikey' => $this->anonKey,
-            'Authorization' => 'Bearer ' . $this->anonKey,
-        ])->get($this->baseUrl . '/api/database/records/scheduled_posts', [
+        $response = $this->api()->get($this->baseUrl . '/api/database/records/scheduled_posts', [
             'status' => 'in.(scheduled,failed)',
-            'scheduled_date' => 'lte.' . $now,
+            'scheduled_date' => 'lte.' . gmdate('Y-m-d\TH:i:s\Z'),
             'select' => '*',
             'order' => 'scheduled_date.asc',
         ]);
@@ -44,11 +55,9 @@ class PublishScheduledPosts extends Command
 
         foreach ($due as $scheduled) {
             $postId = $scheduled['day_post_id'];
+            $now = gmdate('Y-m-d\TH:i:s\Z');
 
-            $postRes = Http::withHeaders([
-                'apikey' => $this->anonKey,
-                'Authorization' => 'Bearer ' . $this->anonKey,
-            ])->get($this->baseUrl . '/api/database/records/day_posts', [
+            $postRes = $this->api()->get($this->baseUrl . '/api/database/records/day_posts', [
                 'id' => 'eq.' . $postId,
                 'select' => '*',
             ]);
@@ -64,13 +73,10 @@ class PublishScheduledPosts extends Command
 
             if (!$post || $post['status'] === 'published') {
                 if ($post) {
-                    Http::withHeaders([
-                        'apikey' => $this->anonKey,
-                        'Authorization' => 'Bearer ' . $this->anonKey,
-                    ])->patch($this->baseUrl . '/api/database/records/scheduled_posts?id=eq.' . $scheduled['id'], [
-                        'status' => 'failed',
-                        'error_message' => 'Post not available for publishing',
-                    ]);
+                    $this->api()->patch(
+                        $this->baseUrl . '/api/database/records/scheduled_posts?id=eq.' . $scheduled['id'],
+                        ['status' => 'failed', 'error_message' => 'Post not available for publishing']
+                    );
                 }
                 $failed++;
                 continue;
@@ -82,60 +88,41 @@ class PublishScheduledPosts extends Command
 
                 if (empty($result['postId'])) {
                     $error = $result['responseData']['message'] ?? json_encode($result['responseData'] ?? 'Unknown error');
-                    Http::withHeaders([
-                        'apikey' => $this->anonKey,
-                        'Authorization' => 'Bearer ' . $this->anonKey,
-                    ])->patch($this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId, [
-                        'status' => 'failed',
-                        'error_message' => $error,
-                    ]);
-                    Http::withHeaders([
-                        'apikey' => $this->anonKey,
-                        'Authorization' => 'Bearer ' . $this->anonKey,
-                    ])->patch($this->baseUrl . '/api/database/records/scheduled_posts?id=eq.' . $scheduled['id'], [
-                        'status' => 'failed',
-                        'error_message' => $error,
-                    ]);
+                    $this->markFailed($postId, $scheduled['id'], $error);
                     $failed++;
                     $this->line("[ERROR] Failed to publish post {$postId}: {$error}");
                     continue;
                 }
 
-                Http::withHeaders([
-                    'apikey' => $this->anonKey,
-                    'Authorization' => 'Bearer ' . $this->anonKey,
-                ])->patch($this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId, [
-                    'status' => 'published',
-                ]);
-                Http::withHeaders([
-                    'apikey' => $this->anonKey,
-                    'Authorization' => 'Bearer ' . $this->anonKey,
-                ])->patch($this->baseUrl . '/api/database/records/scheduled_posts?id=eq.' . $scheduled['id'], [
-                    'status' => 'published',
-                    'published_at' => $now,
-                ]);
+                $this->api()->patch(
+                    $this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId,
+                    ['status' => 'published']
+                );
+                $this->api()->patch(
+                    $this->baseUrl . '/api/database/records/scheduled_posts?id=eq.' . $scheduled['id'],
+                    ['status' => 'published', 'published_at' => $now]
+                );
                 $published++;
                 $this->info("Published post {$postId}");
             } catch (\Exception $e) {
-                Http::withHeaders([
-                    'apikey' => $this->anonKey,
-                    'Authorization' => 'Bearer ' . $this->anonKey,
-                ])->patch($this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId, [
-                    'status' => 'failed',
-                    'error_message' => $e->getMessage(),
-                ]);
-                Http::withHeaders([
-                    'apikey' => $this->anonKey,
-                    'Authorization' => 'Bearer ' . $this->anonKey,
-                ])->patch($this->baseUrl . '/api/database/records/scheduled_posts?id=eq.' . $scheduled['id'], [
-                    'status' => 'failed',
-                    'error_message' => $e->getMessage(),
-                ]);
+                $this->markFailed($postId, $scheduled['id'], $e->getMessage());
                 $failed++;
                 $this->line("[ERROR] Exception publishing post {$postId}: {$e->getMessage()}");
             }
         }
 
         $this->info("Done. Published: {$published}, Failed: {$failed}");
+    }
+
+    private function markFailed(int $postId, int $scheduledId, string $error): void
+    {
+        $this->api()->patch(
+            $this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId,
+            ['status' => 'failed', 'error_message' => $error]
+        );
+        $this->api()->patch(
+            $this->baseUrl . '/api/database/records/scheduled_posts?id=eq.' . $scheduledId,
+            ['status' => 'failed', 'error_message' => $error]
+        );
     }
 }

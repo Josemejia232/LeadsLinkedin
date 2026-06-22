@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { insforge } from '@/lib/insforge';
 import InputLabel from '@/Components/InputLabel';
@@ -8,11 +8,13 @@ import InputError from '@/Components/InputError';
 import PrimaryButton from '@/Components/PrimaryButton';
 
 export default function ContactsCreate() {
+    const { auth } = usePage().props;
     const [formData, setFormData] = useState({
         name: '',
         company: '',
         phone: '',
         email: '',
+        city: '',
         notes: '',
     });
     const [errors, setErrors] = useState({});
@@ -28,10 +30,12 @@ export default function ContactsCreate() {
             const { data, error } = await insforge.database
                 .from('contacts')
                 .insert([{
+                    user_id: auth.user.id,
                     name: formData.name,
-                    company: formData.company || null,
+                    company_name: formData.company || null,
                     phone: formData.phone || null,
                     email: formData.email || null,
+                    city: formData.city || null,
                     notes: formData.notes || null,
                 }])
                 .select();
@@ -129,6 +133,19 @@ export default function ContactsCreate() {
                                     />
                                     <InputError message={errors.email} className="mt-2" />
                                 </div>
+                            </div>
+
+                            <div className="mb-6">
+                                <InputLabel htmlFor="city" value="Ciudad" />
+                                <TextInput
+                                    id="city"
+                                    type="text"
+                                    value={formData.city}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
+                                    className="mt-1 block w-full"
+                                    placeholder="Ciudad"
+                                />
+                                <InputError message={errors.city} className="mt-2" />
                             </div>
 
                             <div className="mb-6">

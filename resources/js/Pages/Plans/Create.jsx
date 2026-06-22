@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { insforge } from '@/lib/insforge';
 import InputLabel from '@/Components/InputLabel';
@@ -8,6 +8,7 @@ import InputError from '@/Components/InputError';
 import PrimaryButton from '@/Components/PrimaryButton';
 
 export default function PlansCreate() {
+    const { auth } = usePage().props;
     const [formData, setFormData] = useState({
         topic_name: '',
         industry: '',
@@ -57,6 +58,7 @@ export default function PlansCreate() {
             const { data, error } = await insforge.database
                 .from('monthly_plans')
                 .insert([{
+                    user_id: auth.user.id,
                     topic_name: formData.topic_name,
                     industry: formData.industry || null,
                     keywords: formData.keywords || null,
@@ -77,11 +79,19 @@ export default function PlansCreate() {
 
             const planId = data[0].id;
 
-            const titlesRes = await fetch('/api/ai/generate-titles?plan_id=' + planId);
+            const titlesRes = await fetch('/api/ai/generate-titles', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan_id: planId }),
+            });
             const titlesResult = await titlesRes.json();
 
             if (titlesResult.success) {
-                await fetch('/api/ai/generate-plan-content?plan_id=' + planId);
+                await fetch('/api/ai/generate-plan-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan_id: planId }),
+                });
             }
 
             window.location.href = route('plans.show', planId);

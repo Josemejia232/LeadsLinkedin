@@ -99,7 +99,7 @@ export default function ContactsIndex() {
                                                     {contact.name}
                                                 </td>
                                                 <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
-                                                    {contact.company || '—'}
+                                                    {contact.company_name || '—'}
                                                 </td>
                                                 <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                                                     {contact.phone || '—'}
