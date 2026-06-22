@@ -14,7 +14,7 @@ class LinkedInService
 
     public function getOAuthUrl(): string
     {
-        $redirectUri = route('publisher.linkedin-callback');
+        $redirectUri = route('publisher.linkedin-callback') . '/';
 
         return $this->getAuthorizationUrl($redirectUri);
     }
@@ -110,7 +110,7 @@ class LinkedInService
 
     public function handleCallback(string $code): void
     {
-        $redirectUri = route('publisher.linkedin-callback');
+        $redirectUri = route('publisher.linkedin-callback') . '/';
 
         $data = $this->exchangeCodeForToken($code, $redirectUri);
 

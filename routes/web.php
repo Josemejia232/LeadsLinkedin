@@ -61,9 +61,9 @@ Route::get('/api/ai/generate-post-content', [App\Http\Controllers\Api\AiControll
 Route::get('/api/ai/current-plan', [App\Http\Controllers\Api\AiController::class, 'currentPlan']);
 Route::post('/api/upload-post-image', [App\Http\Controllers\Api\AiController::class, 'uploadPostImage']);
 
-Route::get('/publisher/linkedin-login', [App\Http\Controllers\PublisherController::class, 'linkedinLogin'])->name('publisher.linkedin-login');
-Route::get('/publisher/linkedin-callback', [App\Http\Controllers\PublisherController::class, 'linkedinCallback'])->name('publisher.linkedin-callback');
-Route::get('/publisher/linkedin-disconnect', [App\Http\Controllers\PublisherController::class, 'linkedinDisconnect'])->name('publisher.linkedin-disconnect');
+Route::get('/publisher/linkedin/login', [App\Http\Controllers\PublisherController::class, 'linkedinLogin'])->name('publisher.linkedin-login');
+Route::get('/publisher/linkedin/callback', [App\Http\Controllers\PublisherController::class, 'linkedinCallback'])->name('publisher.linkedin-callback');
+Route::get('/publisher/linkedin/disconnect', [App\Http\Controllers\PublisherController::class, 'linkedinDisconnect'])->name('publisher.linkedin-disconnect');
 
 Route::get('/cron/scheduler', function (\Illuminate\Http\Request $req) {
     if ($req->query('token') !== 's3cr3t-publish-cron') {
