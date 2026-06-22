@@ -125,12 +125,12 @@ export default function Settings() {
 
                                 {linkedin_configured && !linkedin_connected && (
                                     <div className="mt-4">
-                                        <Link
+                                        <a
                                             href={linkedin_oauth_url || route('publisher.linkedin-login')}
                                             className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-blue-500"
                                         >
                                             Conectar LinkedIn
-                                        </Link>
+                                        </a>
                                     </div>
                                 )}
 

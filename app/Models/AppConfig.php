@@ -83,7 +83,7 @@ class AppConfig extends Model
                 return null;
             }
 
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'apikey' => $anonKey,
                 'Authorization' => 'Bearer ' . $anonKey,
             ])->timeout(5)->get($baseUrl . '/api/database/records/app_configs', [
@@ -113,7 +113,7 @@ class AppConfig extends Model
             }
 
             // Find existing record
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'apikey' => $anonKey,
                 'Authorization' => 'Bearer ' . $anonKey,
             ])->timeout(5)->get($baseUrl . '/api/database/records/app_configs', [
@@ -124,14 +124,14 @@ class AppConfig extends Model
             $existing = $response->successful() ? $response->json() : [];
 
             if (!empty($existing[0]['id'])) {
-                Http::withHeaders([
+                Http::withoutVerifying()->withHeaders([
                     'apikey' => $anonKey,
                     'Authorization' => 'Bearer ' . $anonKey,
                 ])->timeout(5)->patch($baseUrl . '/api/database/records/app_configs?id=eq.' . $existing[0]['id'], [
                     'value' => $value,
                 ]);
             } else {
-                Http::withHeaders([
+                Http::withoutVerifying()->withHeaders([
                     'apikey' => $anonKey,
                     'Authorization' => 'Bearer ' . $anonKey,
                     'Prefer' => 'return=minimal',

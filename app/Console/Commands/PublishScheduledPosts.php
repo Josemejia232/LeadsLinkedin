@@ -18,12 +18,12 @@ class PublishScheduledPosts extends Command
     {
         parent::__construct();
         $this->baseUrl = getenv('VITE_INSFORGE_URL') ?: 'https://w66d8gas.us-east.insforge.app';
-        $this->anonKey = getenv('INSFORGE_ANON_KEY') ?: '';
+        $this->anonKey = getenv('VITE_INSFORGE_ANON_KEY') ?: getenv('INSFORGE_ANON_KEY') ?: '';
     }
 
     private function api(): \Illuminate\Http\Client\PendingRequest
     {
-        return Http::withHeaders([
+        return Http::withoutVerifying()->withHeaders([
             'apikey' => $this->anonKey,
             'Authorization' => 'Bearer ' . $this->anonKey,
         ]);

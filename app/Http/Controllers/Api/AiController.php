@@ -16,8 +16,8 @@ class AiController extends Controller
     public function __construct()
     {
         $this->baseUrl = getenv('VITE_INSFORGE_URL') ?: 'https://w66d8gas.us-east.insforge.app';
-        $this->anonKey = getenv('INSFORGE_ANON_KEY') ?: 'VITE_INSFORGE_ANON_KEY';
-        $this->adminKey = getenv('INSFORGE_ADMIN_KEY') ?: 'INSFORGE_ADMIN_KEY';
+        $this->anonKey = getenv('VITE_INSFORGE_ANON_KEY') ?: getenv('INSFORGE_ANON_KEY') ?: '';
+        $this->adminKey = getenv('INSFORGE_ADMIN_KEY') ?: '';
     }
 
     public function currentPlan()
@@ -291,7 +291,7 @@ class AiController extends Controller
             $binary = base64_decode($matches[2]);
             $key = $postId . '/' . uniqid() . '.' . $ext;
 
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'apikey' => $this->adminKey,
                 'Authorization' => 'Bearer ' . $this->adminKey,
             ])->attach(
@@ -304,7 +304,7 @@ class AiController extends Controller
 
             $url = $this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key);
 
-            $dbResponse = Http::withHeaders([
+            $dbResponse = Http::withoutVerifying()->withHeaders([
                 'apikey' => $this->anonKey,
                 'Authorization' => 'Bearer ' . $this->anonKey,
             ])->patch($this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId, [
@@ -359,7 +359,7 @@ class AiController extends Controller
             $url .= '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
         }
         try {
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'apikey' => $this->anonKey,
                 'Authorization' => 'Bearer ' . $this->anonKey,
             ])->get($url);
@@ -372,7 +372,7 @@ class AiController extends Controller
     private function createPost(array $data): void
     {
         try {
-            Http::withHeaders([
+            Http::withoutVerifying()->withHeaders([
                 'apikey' => $this->anonKey,
                 'Authorization' => 'Bearer ' . $this->anonKey,
             ])->post($this->baseUrl . '/api/database/records/day_posts', [$data]);
@@ -383,7 +383,7 @@ class AiController extends Controller
     private function patchRecord(string $table, int $id, array $data): void
     {
         try {
-            Http::withHeaders([
+            Http::withoutVerifying()->withHeaders([
                 'apikey' => $this->anonKey,
                 'Authorization' => 'Bearer ' . $this->anonKey,
                 'Prefer' => 'return=minimal',
