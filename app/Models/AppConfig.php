@@ -22,7 +22,19 @@ class AppConfig extends Model
             return $config->value;
         }
 
-        return static::getFromInsforge($key) ?? $default;
+        $fromInsforge = static::getFromInsforge($key);
+
+        if ($fromInsforge !== null) {
+            return $fromInsforge;
+        }
+
+        $fromEnv = getenv($key);
+
+        if ($fromEnv !== false && $fromEnv !== '') {
+            return $fromEnv;
+        }
+
+        return $default;
     }
 
     public static function set(string $key, string $value): self
@@ -64,8 +76,8 @@ class AppConfig extends Model
     private static function getFromInsforge(string $key): ?string
     {
         try {
-            $baseUrl = env('VITE_INSFORGE_URL', 'https://w66d8gas.us-east.insforge.app');
-            $anonKey = env('VITE_INSFORGE_ANON_KEY');
+            $baseUrl = getenv('VITE_INSFORGE_URL') ?: 'https://w66d8gas.us-east.insforge.app';
+            $anonKey = getenv('VITE_INSFORGE_ANON_KEY');
 
             if (!$anonKey) {
                 return null;
@@ -93,8 +105,8 @@ class AppConfig extends Model
     private static function writeToInsforge(string $key, string $value): void
     {
         try {
-            $baseUrl = env('VITE_INSFORGE_URL', 'https://w66d8gas.us-east.insforge.app');
-            $anonKey = env('VITE_INSFORGE_ANON_KEY');
+            $baseUrl = getenv('VITE_INSFORGE_URL') ?: 'https://w66d8gas.us-east.insforge.app';
+            $anonKey = getenv('VITE_INSFORGE_ANON_KEY');
 
             if (!$anonKey) {
                 return;

@@ -21,9 +21,10 @@ class PublishScheduledPosts extends Command
             'apikey' => $this->anonKey,
             'Authorization' => 'Bearer ' . $this->anonKey,
         ])->get($this->baseUrl . '/api/database/records/scheduled_posts', [
-            'status' => 'eq.scheduled',
+            'status' => 'in.(scheduled,failed)',
             'scheduled_date' => 'lte.' . $now,
             'select' => '*',
+            'order' => 'scheduled_date.asc',
         ]);
 
         if ($response->failed()) {
