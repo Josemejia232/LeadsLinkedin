@@ -242,7 +242,7 @@ export default function PublisherIndex() {
                                             </td>
                                             <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                                                 {post.scheduled_date
-                                                    ? new Date(post.scheduled_date).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })
+                                                    ? new Date(post.scheduled_date).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Bogota' })
                                                     : '—'}
                                             </td>
                                             <td className="whitespace-nowrap px-6 py-4">{statusBadge(post.status)}</td>

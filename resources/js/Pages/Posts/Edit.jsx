@@ -337,7 +337,7 @@ export default function PostsEdit({ postId }) {
                                         <div>
                                             <InputLabel value="Horario de Publicación" />
                                             <p className="mt-0.5 text-xs text-purple-600">
-                                                Fecha: <span className="font-semibold">{new Date(scheduledPost.scheduled_date).toLocaleDateString('es-ES', { dateStyle: 'long' })}</span>
+                                                Fecha: <span className="font-semibold">{new Date(scheduledPost.scheduled_date).toLocaleDateString('es-ES', { dateStyle: 'long', timeZone: 'America/Bogota' })}</span>
                                             </p>
                                         </div>
                                         <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
