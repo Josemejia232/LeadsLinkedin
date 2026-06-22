@@ -76,13 +76,18 @@ class LinkedInService
     public function getValidToken(): ?string
     {
         $accessToken = AppConfig::get('LINKEDIN_ACCESS_TOKEN');
-        $expiresAt = (int) AppConfig::get('LINKEDIN_TOKEN_EXPIRES_AT', '0');
 
         if (!$accessToken) {
             return null;
         }
 
-        if ($expiresAt > 0 && now()->timestamp < $expiresAt) {
+        $expiresAt = (int) AppConfig::get('LINKEDIN_TOKEN_EXPIRES_AT', '0');
+
+        if ($expiresAt <= 0) {
+            return $accessToken;
+        }
+
+        if (now()->timestamp < $expiresAt) {
             return $accessToken;
         }
 
