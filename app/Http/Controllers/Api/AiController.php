@@ -254,7 +254,12 @@ class AiController extends Controller
                 return response()->json(['success' => true, 'content' => $content]);
             }
 
-            return response()->json(['error' => 'Failed to generate content'], 500);
+            $rawResponse = $gemini->getLastRawResponse();
+            \Illuminate\Support\Facades\Log::error('Gemini content generation failed', [
+                'post_id' => $postId,
+                'raw_response' => $rawResponse,
+            ]);
+            return response()->json(['error' => 'Failed to generate content: ' . ($rawResponse ?: 'API returned empty response')], 500);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

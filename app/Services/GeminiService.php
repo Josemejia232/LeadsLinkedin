@@ -8,11 +8,17 @@ use Illuminate\Support\Facades\Log;
 
 class GeminiService
 {
-    private const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
+    private const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
     private const LINKEDIN_SYSTEM_PROMPT = "Eres un experto en marketing de contenidos B2B para LinkedIn. SIEMPRE sigues esta estructura universal para cada publicación:\n\n1. HOOK (primera línea): Una frase impactante basada en el tema que genera curiosidad inmediata. Debe enganchar al lector en los primeros 2 segundos. Usa datos sorprendentes, preguntas retóricas, o declaraciones polémicas.\n\n2. CUERPO (desarrollo): 3-5 párrafos cortos con valor concreto. Usa emojis para separar ideas. Incluye datos, estadísticas o ejemplos reales. Mantén párrafos de máximo 2-3 líneas para legibilidad en móvil.\n\n3. CTA (llamada a la acción): Pregunta o invitación a la acción que genere engagement (comentarios, compartidos).\n\nREGLAS:\n- Nunca uses títulos con asteriscos en el cuerpo del texto\n- El hook NUNCA debe empezar con \"¿Sabías que?\" o \"En el mundo de...\"\n- Usa lenguaje directo y conversacional\n- Incluye números específicos cuando sea posible\n- El texto total debe tener entre 100 y 300 palabras";
 
     private ?string $apiKey = null;
+    private ?string $lastRawResponse = null;
+
+    public function getLastRawResponse(): ?string
+    {
+        return $this->lastRawResponse;
+    }
 
     public function setApiKey(?string $apiKey): self
     {
@@ -26,6 +32,7 @@ class GeminiService
             $key = $apiKey ?? $this->apiKey ?? AppConfig::get('GEMINI_API_KEY');
             if (!$key) {
                 Log::warning('GeminiService: no API key configured');
+                $this->lastRawResponse = 'No API key configured';
                 return '';
             }
             $response = Http::timeout(60)
@@ -43,11 +50,13 @@ class GeminiService
 
             if ($response->failed()) {
                 $body = $response->body();
+                $this->lastRawResponse = "HTTP {$response->status()}: {$body}";
                 Log::error("GeminiService: API request failed - status {$response->status()}: {$body}");
                 return '';
             }
 
             $data = $response->json();
+            $this->lastRawResponse = json_encode($data);
 
             $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
@@ -57,6 +66,7 @@ class GeminiService
 
             return $text;
         } catch (\Throwable $e) {
+            $this->lastRawResponse = 'Exception: ' . $e->getMessage();
             Log::error('GeminiService: exception: ' . $e->getMessage());
             return '';
         }
