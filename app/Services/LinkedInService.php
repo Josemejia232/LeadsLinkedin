@@ -10,7 +10,7 @@ class LinkedInService
     private const AUTH_URL = 'https://www.linkedin.com/oauth/v2/authorization';
     private const TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken';
     private const API_URL = 'https://api.linkedin.com/v2';
-    private const SCOPES = ['w_member_social', 'openid', 'profile', 'email', 'r_refresh_token'];
+    private const SCOPES = ['w_member_social', 'openid', 'profile', 'email'];
 
     public function getOAuthUrl(): string
     {
