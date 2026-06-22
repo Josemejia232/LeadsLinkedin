@@ -8,7 +8,8 @@ use Illuminate\Support\Facades\Log;
 
 class GeminiService
 {
-    private const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    private const API_URL = 'https://api.openai.com/v1/chat/completions';
+    private const MODEL = 'gpt-4o-mini';
 
     private const LINKEDIN_SYSTEM_PROMPT = "Eres un experto en marketing de contenidos B2B para LinkedIn. SIEMPRE sigues esta estructura universal para cada publicación:\n\n1. HOOK (primera línea): Una frase impactante basada en el tema que genera curiosidad inmediata. Debe enganchar al lector en los primeros 2 segundos. Usa datos sorprendentes, preguntas retóricas, o declaraciones polémicas.\n\n2. CUERPO (desarrollo): 3-5 párrafos cortos con valor concreto. Usa emojis para separar ideas. Incluye datos, estadísticas o ejemplos reales. Mantén párrafos de máximo 2-3 líneas para legibilidad en móvil.\n\n3. CTA (llamada a la acción): Pregunta o invitación a la acción que genere engagement (comentarios, compartidos).\n\nREGLAS:\n- Nunca uses títulos con asteriscos en el cuerpo del texto\n- El hook NUNCA debe empezar con \"¿Sabías que?\" o \"En el mundo de...\"\n- Usa lenguaje directo y conversacional\n- Incluye números específicos cuando sea posible\n- El texto total debe tener entre 100 y 300 palabras";
 
@@ -26,22 +27,7 @@ class GeminiService
         return $this;
     }
 
-    private function parseRetryDelay(string $body): int
-    {
-        $data = json_decode($body, true);
-        $seconds = 0;
-        foreach ($data['error']['details'] ?? [] as $detail) {
-            if (($detail['@type'] ?? '') === 'type.googleapis.com/google.rpc.RetryInfo') {
-                $delay = $detail['retryDelay'] ?? '';
-                if (preg_match('/(\d+)s/', $delay, $m)) {
-                    $seconds = (int) $m[1];
-                }
-            }
-        }
-        return $seconds > 0 ? $seconds : 30;
-    }
-
-    public function generate(array $contents, float $temperature = 0.8, int $maxTokens = 4096, ?string $apiKey = null): string
+    public function generate(string $prompt, float $temperature = 0.8, int $maxTokens = 4096, ?string $apiKey = null): string
     {
         $maxRetries = 3;
         $attempt = 0;
@@ -58,20 +44,19 @@ class GeminiService
 
                 $response = Http::timeout(60)
                     ->withoutVerifying()
-                    ->post(self::API_URL . '?key=' . $key, [
-                        'system_instruction' => [
-                            'parts' => [['text' => self::LINKEDIN_SYSTEM_PROMPT]],
+                    ->withToken($key)
+                    ->post(self::API_URL, [
+                        'model' => self::MODEL,
+                        'messages' => [
+                            ['role' => 'system', 'content' => self::LINKEDIN_SYSTEM_PROMPT],
+                            ['role' => 'user', 'content' => $prompt],
                         ],
-                        'contents' => $contents,
-                        'generationConfig' => [
-                            'temperature' => $temperature,
-                            'maxOutputTokens' => $maxTokens,
-                        ],
+                        'temperature' => $temperature,
+                        'max_tokens' => $maxTokens,
                     ]);
 
                 if ($response->status() === 429 && $attempt < $maxRetries) {
-                    $body = $response->body();
-                    $delay = $this->parseRetryDelay($body) * $attempt;
+                    $delay = 5 * $attempt;
                     Log::warning("GeminiService: rate limited (attempt {$attempt}), retrying in {$delay}s");
                     $this->lastRawResponse = "HTTP 429: rate limited, retrying in {$delay}s";
                     sleep($delay);
@@ -88,7 +73,7 @@ class GeminiService
                 $data = $response->json();
                 $this->lastRawResponse = json_encode($data);
 
-                $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                $text = $data['choices'][0]['message']['content'] ?? '';
 
                 if (empty($text)) {
                     Log::warning('GeminiService: API returned empty text', ['response' => $data]);
@@ -112,27 +97,9 @@ class GeminiService
         string $keywords,
         string $callToAction = ''
     ): array {
-        $prompt = "Genera un post breve y directo para LinkedIn.
+        $prompt = "Genera un post breve y directo para LinkedIn.\n\nTema: {$topic}\nTítulo: {$title}\nTipo: {$postType}\nPalabras clave: {$keywords}\n\nDevuelve tu respuesta usando este formato exacto:\n\n---HOOK---\n[Escribe aquí el hook, una frase impactante que enganche]\n---CONTENIDO---\n[Escribe aquí 2-3 párrafos cortos]\n---CTA---\n[Escribe aquí un llamado a la acción, una pregunta para generar comentarios]\n---HASHTAGS---\n[Escribe aquí 5-10 hashtags relevantes separados por espacio, empezando cada uno con #]";
 
-Tema: {$topic}
-Título: {$title}
-Tipo: {$postType}
-Palabras clave: {$keywords}
-
-Devuelve tu respuesta usando este formato exacto:
-
----HOOK---
-[Escribe aquí el hook, una frase impactante que enganche]
----CONTENIDO---
-[Escribe aquí 2-3 párrafos cortos]
----CTA---
-[Escribe aquí un llamado a la acción, una pregunta para generar comentarios]
----HASHTAGS---
-[Escribe aquí 5-10 hashtags relevantes separados por espacio, empezando cada uno con #]";
-
-        $response = $this->generate([
-            ['parts' => [['text' => $prompt]]],
-        ]);
+        $response = $this->generate($prompt);
 
         $text = '';
         $hashtags = '';
@@ -200,9 +167,7 @@ REGLAS PARA TÍTULOS (hooks):
 
 Devuelve solo los títulos numerados del 1 al {$totalPosts}.";
 
-        $response = $this->generate([
-            ['parts' => [['text' => $prompt]]],
-        ]);
+        $response = $this->generate($prompt);
 
         $lines = explode("\n", $response);
         $titles = [];
@@ -235,18 +200,14 @@ Devuelve solo los títulos numerados del 1 al {$totalPosts}.";
     ): string {
         $prompt = "Crea un plan mensual de contenido para LinkedIn sobre el tema '{$topicName}' en la industria '{$industry}'. Palabras clave: {$keywords}. Objetivos: {$objectives}. Audiencia objetivo: {$targetAudience}. Genera {$totalPosts} ideas de publicaciones con estructura: día del mes, título, breve descripción y tipo de contenido (educativo, inspiracional, promocional, interactivo).";
 
-        return $this->generate([
-            ['parts' => [['text' => $prompt]]],
-        ]);
+        return $this->generate($prompt);
     }
 
     public function generateTopicSuggestions(string $topicName): array
     {
         $prompt = "Eres un experto en marketing de contenidos B2B para LinkedIn. Analiza el tema '{$topicName}' y sugiere: industria relacionada, palabras clave relevantes, objetivos de contenido, audiencia objetivo, y 5 títulos sugeridos para publicaciones. Devuelve en formato: INDUSTRIA: ... KEYWORDS: ... OBJETIVOS: ... AUDIENCIA: ... TITULOS: ...";
 
-        $response = $this->generate([
-            ['parts' => [['text' => $prompt]]],
-        ]);
+        $response = $this->generate($prompt);
 
         $industry = '';
         $keywords = '';
@@ -294,9 +255,7 @@ Devuelve solo los títulos numerados del 1 al {$totalPosts}.";
     {
         $prompt = "Tema: {$topic}\nTítulo: {$title}\n\nGenera solo un Call to Action (una pregunta para LinkedIn que invite a comentar) y 5-10 hashtags relevantes separados por espacio.\n\nFormato:\nCTA: [texto]\nHASHTAGS: [#tag1 #tag2 ...]";
 
-        $response = $this->generate([
-            ['parts' => [['text' => $prompt]]],
-        ]);
+        $response = $this->generate($prompt);
 
         $cta = '';
         $hashtags = '';

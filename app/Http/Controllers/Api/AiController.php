@@ -232,7 +232,7 @@ class AiController extends Controller
             $plan = $this->fetchPlan($post['plan_id']);
             $geminiKey = $this->getConfig('GEMINI_API_KEY');
             if (!$geminiKey) {
-                return response()->json(['error' => 'No Gemini key configured'], 400);
+                return response()->json(['error' => 'No API key configured'], 400);
             }
 
             $gemini = app(GeminiService::class)->setApiKey($geminiKey);
