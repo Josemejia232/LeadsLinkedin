@@ -312,7 +312,18 @@ class AiController extends Controller
     private function getConfig(string $key): ?string
     {
         $data = $this->fetchAll('app_configs', ['key' => 'eq.' . $key]);
-        return $data[0]['value'] ?? null;
+        $value = $data[0]['value'] ?? null;
+
+        if ($value !== null && $value !== '') {
+            return $value;
+        }
+
+        $fromEnv = getenv($key);
+        if ($fromEnv !== false && $fromEnv !== '') {
+            return $fromEnv;
+        }
+
+        return null;
     }
 
     private function fetchPlan(int $id): ?array

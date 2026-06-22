@@ -66,5 +66,8 @@ Route::get('/cron/scheduler', function (\Illuminate\Http\Request $req) {
         abort(401);
     }
     \Illuminate\Support\Facades\Artisan::call('app:publish-scheduled');
-    return response(\Illuminate\Support\Facades\Artisan::output());
+    $output = \Illuminate\Support\Facades\Artisan::output();
+    $lines = explode("\n", trim($output));
+    $summary = end($lines);
+    return response($summary);
 })->name('cron.scheduler');
