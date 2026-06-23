@@ -312,14 +312,24 @@ class AiController extends Controller
                 @mkdir($dir, 0755, true);
             }
 
-            $filename = $postId . '_' . uniqid() . '.webp';
-            $savePath = $dir . '/' . $filename;
+            $ext = in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp']) ? $ext : 'png';
+            if ($ext === 'jpeg') { $ext = 'jpg'; }
 
-            $img = @imagecreatefromstring($binary);
-            if ($img !== false) {
-                imagewebp($img, $savePath, 80);
-                imagedestroy($img);
+            if (function_exists('imagecreatefromstring') && function_exists('imagewebp')) {
+                $img = @imagecreatefromstring($binary);
+                if ($img !== false) {
+                    $filename = $postId . '_' . uniqid() . '.webp';
+                    $savePath = $dir . '/' . $filename;
+                    imagewebp($img, $savePath, 80);
+                    imagedestroy($img);
+                } else {
+                    $filename = $postId . '_' . uniqid() . '.' . $ext;
+                    $savePath = $dir . '/' . $filename;
+                    file_put_contents($savePath, $binary);
+                }
             } else {
+                $filename = $postId . '_' . uniqid() . '.' . $ext;
+                $savePath = $dir . '/' . $filename;
                 file_put_contents($savePath, $binary);
             }
 
