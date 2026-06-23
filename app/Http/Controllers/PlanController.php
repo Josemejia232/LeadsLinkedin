@@ -35,7 +35,7 @@ class PlanController extends Controller
     public function create()
     {
         $months = collect(range(1, 12))->mapWithKeys(fn ($m) => [
-            $m => Carbon::create()->month($m)->translatedFormat('F'),
+            $m => Carbon::create()->month($m)->format('F'),
         ]);
 
         $currentYear = (int) now()->format('Y');
