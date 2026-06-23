@@ -206,8 +206,26 @@ class LinkedInService
                 ],
             ]);
 
+        $rawBody = $response->body();
         $body = $response->json();
-        $postId = $body['id'] ?? '';
+        if (!is_array($body)) {
+            $body = ['raw' => $rawBody];
+        }
+
+        $postId = $body['id'] ?? $response->header('x-restli-id') ?? '';
+
+        if (empty($postId) && preg_match('/urn:li:(\w+):(\d+)/', $rawBody, $m)) {
+            $postId = $m[0];
+        }
+
+        if (empty($postId)) {
+            \Illuminate\Support\Facades\Log::warning('LinkedIn createTextPost: no ID found', [
+                'status' => $response->status(),
+                'headers' => $response->headers(),
+                'body' => $body,
+                'raw' => $rawBody,
+            ]);
+        }
 
         if ($response->failed() && empty($postId)) {
             return [

@@ -79,8 +79,15 @@ class PublisherController extends Controller
         try {
             $result = app(LinkedInService::class)->publish($post);
 
+            $statusCode = $result['statusCode'] ?? 0;
+
+            // HTTP 201 = Created (success even without postId)
+            if ($statusCode === 201) {
+                $post->update(['status' => 'published']);
+                return redirect()->back()->with('success', 'Post publicado en LinkedIn exitosamente.');
+            }
+
             if (empty($result['postId'])) {
-                $statusCode = $result['statusCode'] ?? '?';
                 $detail = $result['responseData']['message'] ?? json_encode($result['responseData'] ?? 'Error desconocido');
                 $error = "[HTTP {$statusCode}] {$detail}";
                 $post->update(['status' => 'failed', 'error_message' => $error]);
