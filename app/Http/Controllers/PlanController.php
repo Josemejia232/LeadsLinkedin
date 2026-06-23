@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\Utf8;
 use App\Models\MonthlyPlan;
 use App\Models\DayPost;
 use App\Models\ScheduledPost;
@@ -214,12 +215,12 @@ class PlanController extends Controller
                     ''
                 );
 
-                $post->update([
+                $post->update(Utf8::clean([
                     'text_content' => $content['text'] ?? '',
                     'hashtags' => $content['hashtags'] ?? '',
                     'call_to_action' => $content['cta'] ?? '',
                     'status' => 'generated',
-                ]);
+                ]));
             } catch (\Exception $e) {
                 continue;
             }

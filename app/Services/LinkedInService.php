@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Helpers\Utf8;
 use App\Models\AppConfig;
 use Illuminate\Support\Facades\Http;
 
@@ -199,11 +200,11 @@ class LinkedInService
 
         $initResponse = Http::withToken($accessToken)
             ->withHeaders(['LinkedIn-Version' => '202605'])
-            ->post('https://api.linkedin.com/rest/images?action=initializeUpload', [
+            ->post('https://api.linkedin.com/rest/images?action=initializeUpload', Utf8::clean([
                 'initializeUploadRequest' => [
                     'owner' => $urn,
                 ],
-            ]);
+            ]));
 
         if ($initResponse->failed()) {
             \Illuminate\Support\Facades\Log::warning('LinkedIn image init failed', [
@@ -274,6 +275,8 @@ class LinkedInService
                 ],
             ];
         }
+
+        $payload = Utf8::clean($payload);
 
         $response = Http::withToken($accessToken)
             ->withHeaders(['LinkedIn-Version' => '202605'])

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Helpers\Utf8;
 use App\Http\Controllers\Controller;
 use App\Services\GeminiService;
 use Illuminate\Http\Request;
@@ -262,12 +263,12 @@ class AiController extends Controller
             );
 
             if (!empty($content['text'])) {
-                $updateData = [
+                $updateData = Utf8::clean([
                     'text_content' => $content['text'],
                     'hashtags' => $content['hashtags'] ?? '',
                     'call_to_action' => $content['cta'] ?? '',
                     'status' => 'generated',
-                ];
+                ]);
 
                 $post->update($updateData);
                 $this->patchRecord('day_posts', $postId, $updateData);

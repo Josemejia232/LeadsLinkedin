@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Helpers\Utf8;
 use App\Models\AppConfig;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -44,7 +45,7 @@ class GeminiService
 
                 $response = Http::timeout(60)
                     ->withToken($key)
-                    ->post(self::API_URL, [
+                    ->post(self::API_URL, Utf8::clean([
                         'model' => self::MODEL,
                         'messages' => [
                             ['role' => 'system', 'content' => self::LINKEDIN_SYSTEM_PROMPT],
@@ -52,7 +53,7 @@ class GeminiService
                         ],
                         'temperature' => $temperature,
                         'max_tokens' => $maxTokens,
-                    ]);
+                    ]));
 
                 if ($response->status() === 429 && $attempt < $maxRetries) {
                     $delay = 5 * $attempt;
