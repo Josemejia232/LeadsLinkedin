@@ -184,27 +184,100 @@ class LinkedInService
 
         $personId = AppConfig::get('LINKEDIN_PERSON_ID');
         $text = $post->text_content ?? $post->title;
+        $imageUrn = null;
 
-        return $this->createTextPost($token, $personId, $text);
+        if (!empty($post->image_url)) {
+            $imageUrn = $this->uploadImage($token, $personId, $post->image_url);
+        }
+
+        return $this->createPost($token, $personId, $text, $imageUrn);
     }
 
-    public function createTextPost(string $accessToken, string $personId, string $text): array
+    public function uploadImage(string $accessToken, string $personId, string $imageUrl): ?string
     {
         $urn = "urn:li:person:{$personId}";
 
-        $response = Http::withToken($accessToken)
+        $initResponse = Http::withToken($accessToken)
             ->withHeaders(['LinkedIn-Version' => '202605'])
-            ->post('https://api.linkedin.com/rest/posts', [
-                'author' => $urn,
-                'commentary' => $text,
-                'visibility' => 'PUBLIC',
-                'lifecycleState' => 'PUBLISHED',
-                'distribution' => [
-                    'feedDistribution' => 'MAIN_FEED',
-                    'targetEntities' => [],
-                    'thirdPartyDistributionChannels' => [],
+            ->post('https://api.linkedin.com/rest/images?action=initializeUpload', [
+                'initializeUploadRequest' => [
+                    'owner' => $urn,
                 ],
             ]);
+
+        if ($initResponse->failed()) {
+            \Illuminate\Support\Facades\Log::warning('LinkedIn image init failed', [
+                'status' => $initResponse->status(),
+                'body' => $initResponse->body(),
+            ]);
+            return null;
+        }
+
+        $initData = $initResponse->json();
+        $uploadUrl = $initData['value']['uploadUrl'] ?? null;
+        $imageUrn = $initData['value']['image'] ?? null;
+
+        if (!$uploadUrl || !$imageUrn) {
+            return null;
+        }
+
+        $imagePath = public_path('uploads/posts/' . basename($imageUrl));
+        if (!file_exists($imagePath)) {
+            return null;
+        }
+
+        $imageBinary = file_get_contents($imagePath);
+        if ($imageBinary === false) {
+            return null;
+        }
+
+        $mime = mime_content_type($imagePath) ?: 'image/webp';
+
+        $uploadResponse = Http::withToken($accessToken)
+            ->withHeaders([
+                'Content-Type' => $mime,
+                'LinkedIn-Version' => '202605',
+            ])
+            ->put($uploadUrl, $imageBinary);
+
+        if ($uploadResponse->failed()) {
+            \Illuminate\Support\Facades\Log::warning('LinkedIn image upload failed', [
+                'status' => $uploadResponse->status(),
+                'body' => $uploadResponse->body(),
+            ]);
+            return null;
+        }
+
+        return $imageUrn;
+    }
+
+    public function createPost(string $accessToken, string $personId, string $text, ?string $imageUrn = null): array
+    {
+        $urn = "urn:li:person:{$personId}";
+
+        $payload = [
+            'author' => $urn,
+            'commentary' => $text,
+            'visibility' => 'PUBLIC',
+            'lifecycleState' => 'PUBLISHED',
+            'distribution' => [
+                'feedDistribution' => 'MAIN_FEED',
+                'targetEntities' => [],
+                'thirdPartyDistributionChannels' => [],
+            ],
+        ];
+
+        if ($imageUrn) {
+            $payload['content'] = [
+                'media' => [
+                    'id' => $imageUrn,
+                ],
+            ];
+        }
+
+        $response = Http::withToken($accessToken)
+            ->withHeaders(['LinkedIn-Version' => '202605'])
+            ->post('https://api.linkedin.com/rest/posts', $payload);
 
         $statusCode = $response->status();
         $rawBody = $response->body();

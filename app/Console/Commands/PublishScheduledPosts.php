@@ -6,6 +6,7 @@ use App\Models\DayPost;
 use App\Models\ScheduledPost;
 use App\Services\LinkedInService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class PublishScheduledPosts extends Command
 {
@@ -14,8 +15,9 @@ class PublishScheduledPosts extends Command
 
     public function handle(): void
     {
-        $due = ScheduledPost::whereIn('status', ['scheduled', 'failed'])
-            ->where('scheduled_date', '<=', now())
+        $due = ScheduledPost::where('status', 'scheduled')
+            ->where('scheduled_date', '<=', now()->addMinute())
+            ->where('scheduled_date', '>=', now()->subMinutes(30))
             ->orderBy('scheduled_date')
             ->get();
 
@@ -32,11 +34,9 @@ class PublishScheduledPosts extends Command
 
             if (!$post || $post->status === 'published') {
                 if ($post) {
-                    $scheduled->update([
-                        'status' => 'failed',
-                        'error_message' => 'Post not available for publishing',
-                    ]);
+                    Log::warning("Scheduled post {$scheduled->id}: day_post {$scheduled->day_post_id} already published");
                 }
+                $scheduled->delete();
                 $failed++;
                 continue;
             }
