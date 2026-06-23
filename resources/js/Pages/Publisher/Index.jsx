@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, usePage, router } from '@inertiajs/react';
 
 export default function PublisherIndex() {
     const { scheduled_posts, calendar, months, month, year, flash } = usePage().props;
+    const [editingId, setEditingId] = useState(null);
+    const [editDate, setEditDate] = useState('');
 
     const handlePrevMonth = () => {
         const m = month === 1 ? 12 : month - 1;
@@ -14,6 +17,25 @@ export default function PublisherIndex() {
         const m = month === 12 ? 1 : month + 1;
         const y = month === 12 ? year + 1 : year;
         router.get(route('publisher.scheduled', { month: m, year: y }));
+    };
+
+    const startEdit = (post) => {
+        const d = new Date(post.scheduled_date);
+        const pad = (n) => String(n).padStart(2, '0');
+        setEditDate(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+        setEditingId(post.id);
+    };
+
+    const saveEdit = (post) => {
+        if (!editDate) return;
+        const dayPostId = post.day_post?.id || post.day_posts?.id;
+        if (!dayPostId) return;
+        router.post(route('posts.schedule', dayPostId), {
+            scheduled_date: new Date(editDate).toISOString(),
+        }, {
+            preserveScroll: true,
+            onSuccess: () => setEditingId(null),
+        });
     };
 
     const statusBadge = (status) => {
@@ -135,7 +157,7 @@ export default function PublisherIndex() {
                                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Título</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Fecha Programada</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Estado</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Error</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Acción</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 bg-white">
@@ -146,13 +168,43 @@ export default function PublisherIndex() {
                                                 {post.day_post?.title || post.day_posts?.title || '—'}
                                             </td>
                                             <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
-                                                {post.scheduled_date
-                                                    ? new Date(post.scheduled_date).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Bogota' })
-                                                    : '—'}
+                                                {editingId === post.id ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="datetime-local"
+                                                            value={editDate}
+                                                            onChange={(e) => setEditDate(e.target.value)}
+                                                            className="rounded border border-gray-300 px-2 py-1 text-xs"
+                                                        />
+                                                        <button
+                                                            onClick={() => saveEdit(post)}
+                                                            className="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-500"
+                                                        >
+                                                            Guardar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setEditingId(null)}
+                                                            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                                                        >
+                                                            Cancelar
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span>{post.scheduled_date
+                                                        ? new Date(post.scheduled_date).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Bogota' })
+                                                        : '—'}</span>
+                                                )}
                                             </td>
                                             <td className="whitespace-nowrap px-6 py-4">{statusBadge(post.status)}</td>
-                                            <td className="max-w-xs truncate px-6 py-4 text-sm text-red-600" title={post.error_message || ''}>
-                                                {post.error_message || '—'}
+                                            <td className="whitespace-nowrap px-6 py-4">
+                                                {editingId !== post.id && (
+                                                    <button
+                                                        onClick={() => startEdit(post)}
+                                                        className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                                                    >
+                                                        Editar Fecha
+                                                    </button>
+                                                )}
                                             </td>
                                         </tr>
                                     ))
