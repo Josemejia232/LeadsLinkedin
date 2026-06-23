@@ -22,7 +22,7 @@ class MigrateFromInsforge extends Command
         if ($url === false || $url === '') {
             $url = 'https://w66d8gas.us-east.insforge.app';
         }
-        return rtrim($url, '/') . '/rest/v1';
+        return rtrim($url, '/') . '/api/database/records';
     }
 
     private function headers(): array
@@ -98,6 +98,7 @@ class MigrateFromInsforge extends Command
             if (isset($p['topic_id']) && is_null($p['topic_id'])) {
                 unset($p['topic_id']);
             }
+            $p['user_id'] = 1;
             $plan = MonthlyPlan::create($p);
             $planIdMap[$oldId] = $plan->id;
         }

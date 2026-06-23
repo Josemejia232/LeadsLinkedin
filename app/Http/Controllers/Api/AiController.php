@@ -178,37 +178,37 @@ class AiController extends Controller
                 return response()->json(['error' => 'post_id required'], 400);
             }
 
-            $posts = $this->fetchAll('day_posts', ['id' => 'eq.' . $postId]);
-            $post = $posts[0] ?? null;
+            $post = \App\Models\DayPost::find($postId);
             if (!$post) {
                 return response()->json(['error' => 'Post not found'], 404);
             }
 
-            $plan = $this->fetchPlan($post['plan_id']);
-            $topic = $plan['topic_name'] ?? $post['title'] ?? '';
+            $plan = $post->plan;
+            $topic = $plan->topic_name ?? $post->title ?? '';
             $update = [];
 
-            if (empty($post['text_content']) && !empty($post['title'])) {
+            if (empty($post->text_content) && !empty($post->title)) {
                 return response()->json(['error' => 'No content to generate from, generate full content first'], 400);
             }
 
             $geminiKey = $this->getConfig('GEMINI_API_KEY');
 
-            if (empty($post['call_to_action']) || empty($post['hashtags'])) {
+            if (empty($post->call_to_action) || empty($post->hashtags)) {
                 if ($geminiKey) {
                     $gemini = app(GeminiService::class)->setApiKey($geminiKey);
-                    $result = $gemini->generateCtaAndHashtags($topic, $post['title']);
+                    $result = $gemini->generateCtaAndHashtags($topic, $post->title);
 
-                    if (empty($post['call_to_action'])) {
+                    if (empty($post->call_to_action)) {
                         $update['call_to_action'] = $result['cta'] ?? '';
                     }
-                    if (empty($post['hashtags'])) {
+                    if (empty($post->hashtags)) {
                         $update['hashtags'] = $result['hashtags'] ?? '';
                     }
                 }
             }
 
             if (!empty($update)) {
+                $post->update($update);
                 $this->patchRecord('day_posts', $postId, $update);
             }
 
@@ -226,17 +226,16 @@ class AiController extends Controller
                 return response()->json(['error' => 'post_id required'], 400);
             }
 
-            $posts = $this->fetchAll('day_posts', ['id' => 'eq.' . $postId]);
-            $post = $posts[0] ?? null;
+            $post = \App\Models\DayPost::find($postId);
             if (!$post) {
                 return response()->json(['error' => 'Post not found'], 404);
             }
 
-            if (!empty($post['text_content'])) {
+            if (!empty($post->text_content)) {
                 return response()->json(['success' => true, 'message' => 'Already has content']);
             }
 
-            $plan = $this->fetchPlan($post['plan_id']);
+            $plan = $post->plan;
             $geminiKey = $this->getConfig('GEMINI_API_KEY');
             if (!$geminiKey) {
                 return response()->json(['error' => 'No API key configured'], 400);
@@ -244,20 +243,24 @@ class AiController extends Controller
 
             $gemini = app(GeminiService::class)->setApiKey($geminiKey);
             $content = $gemini->generatePostContent(
-                $plan['topic_name'] ?? '',
-                $post['title'],
-                $post['post_type'],
-                $plan['keywords'] ?? '',
+                $plan->topic_name ?? '',
+                $post->title,
+                $post->post_type,
+                $plan->keywords ?? '',
                 ''
             );
 
             if (!empty($content['text'])) {
-                $this->patchRecord('day_posts', $postId, [
+                $updateData = [
                     'text_content' => $content['text'],
                     'hashtags' => $content['hashtags'] ?? '',
                     'call_to_action' => $content['cta'] ?? '',
                     'status' => 'generated',
-                ]);
+                ];
+
+                $post->update($updateData);
+                $this->patchRecord('day_posts', $postId, $updateData);
+
                 return response()->json(['success' => true, 'content' => $content]);
             }
 
@@ -291,7 +294,7 @@ class AiController extends Controller
             $binary = base64_decode($matches[2]);
             $key = $postId . '/' . uniqid() . '.' . $ext;
 
-            $response = Http::withoutVerifying()->withHeaders([
+            $response = Http::withHeaders([
                 'apikey' => $this->adminKey,
                 'Authorization' => 'Bearer ' . $this->adminKey,
             ])->attach(
@@ -304,7 +307,7 @@ class AiController extends Controller
 
             $url = $this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key);
 
-            $dbResponse = Http::withoutVerifying()->withHeaders([
+            $dbResponse = Http::withHeaders([
                 'apikey' => $this->anonKey,
                 'Authorization' => 'Bearer ' . $this->anonKey,
             ])->patch($this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId, [
@@ -314,6 +317,11 @@ class AiController extends Controller
             if ($dbResponse->failed()) {
                 return response()->json(['error' => 'Database update failed: ' . $dbResponse->body()], 500);
             }
+
+            // Also update local SQLite!
+            \App\Models\DayPost::where('id', $postId)->update([
+                'image_url' => $url,
+            ]);
 
             return response()->json(['url' => $url]);
         } catch (\Throwable $e) {
@@ -359,7 +367,7 @@ class AiController extends Controller
             $url .= '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
         }
         try {
-            $response = Http::withoutVerifying()->withHeaders([
+            $response = Http::withHeaders([
                 'apikey' => $this->anonKey,
                 'Authorization' => 'Bearer ' . $this->anonKey,
             ])->get($url);
@@ -372,10 +380,13 @@ class AiController extends Controller
     private function createPost(array $data): void
     {
         try {
-            Http::withoutVerifying()->withHeaders([
+            Http::withHeaders([
                 'apikey' => $this->anonKey,
                 'Authorization' => 'Bearer ' . $this->anonKey,
             ])->post($this->baseUrl . '/api/database/records/day_posts', [$data]);
+
+            // Also create in SQLite!
+            \App\Models\DayPost::create($data);
         } catch (\Throwable $e) {
         }
     }
@@ -383,11 +394,18 @@ class AiController extends Controller
     private function patchRecord(string $table, int $id, array $data): void
     {
         try {
-            Http::withoutVerifying()->withHeaders([
+            Http::withHeaders([
                 'apikey' => $this->anonKey,
                 'Authorization' => 'Bearer ' . $this->anonKey,
                 'Prefer' => 'return=minimal',
             ])->patch($this->baseUrl . '/api/database/records/' . $table . '?id=eq.' . $id, $data);
+
+            // Also patch local SQLite!
+            if ($table === 'day_posts') {
+                \App\Models\DayPost::where('id', $id)->update($data);
+            } elseif ($table === 'monthly_plans') {
+                \App\Models\MonthlyPlan::where('id', $id)->update($data);
+            }
         } catch (\Throwable $e) {
         }
     }

@@ -79,7 +79,7 @@ class LinkedInService
     public function getMe(string $accessToken): array
     {
         $response = Http::withToken($accessToken)
-            ->withHeaders(['LinkedIn-Version' => '202412'])
+            ->withHeaders(['LinkedIn-Version' => '202605'])
             ->get(self::API_URL . '/me');
 
         return $response->json();
@@ -193,7 +193,7 @@ class LinkedInService
         $urn = "urn:li:person:{$personId}";
 
         $response = Http::withToken($accessToken)
-            ->withHeaders(['LinkedIn-Version' => '202412'])
+            ->withHeaders(['LinkedIn-Version' => '202605'])
             ->post('https://api.linkedin.com/rest/posts', [
                 'author' => $urn,
                 'commentary' => $text,
