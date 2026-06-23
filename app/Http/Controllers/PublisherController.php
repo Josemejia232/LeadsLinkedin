@@ -111,7 +111,7 @@ class PublisherController extends Controller
             }
 
             if (empty($result['postId'])) {
-                $detail = $result['responseData']['message'] ?? json_encode($result['responseData'] ?? 'Error desconocido');
+                $detail = $result['responseData']['message'] ?? json_encode($result['responseData'] ?? 'Error desconocido', JSON_INVALID_UTF8_SUBSTITUTE);
                 $error = "[HTTP {$statusCode}] {$detail}";
                 $post->update(['status' => 'failed', 'error_message' => $error]);
                 return redirect()->back()->with('error', "LinkedIn rechazó la publicación: {$error}");

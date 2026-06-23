@@ -45,7 +45,7 @@ class PublishScheduledPosts extends Command
                 $result = app(LinkedInService::class)->publish($post);
 
                 if (empty($result['postId'])) {
-                    $error = $result['responseData']['message'] ?? json_encode($result['responseData'] ?? 'Unknown error');
+                    $error = $result['responseData']['message'] ?? json_encode($result['responseData'] ?? 'Unknown error', JSON_INVALID_UTF8_SUBSTITUTE);
                     $post->update(['status' => 'failed', 'error_message' => $error]);
                     $scheduled->update(['status' => 'failed', 'error_message' => $error]);
                     $failed++;
