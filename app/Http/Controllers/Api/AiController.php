@@ -307,17 +307,21 @@ class AiController extends Controller
                 return response()->json(['error' => 'Base64 decode failed'], 400);
             }
 
-            $extMap = ['jpeg' => 'jpg', 'jpg' => 'jpg', 'png' => 'png', 'gif' => 'gif', 'webp' => 'webp'];
-            $safeExt = $extMap[$ext] ?? 'jpg';
-
             $dir = public_path('uploads/posts');
             if (!is_dir($dir)) {
                 @mkdir($dir, 0755, true);
             }
 
-            $filename = $postId . '_' . uniqid() . '.' . $safeExt;
+            $filename = $postId . '_' . uniqid() . '.webp';
             $savePath = $dir . '/' . $filename;
-            file_put_contents($savePath, $binary);
+
+            $img = @imagecreatefromstring($binary);
+            if ($img !== false) {
+                imagewebp($img, $savePath, 80);
+                imagedestroy($img);
+            } else {
+                file_put_contents($savePath, $binary);
+            }
 
             $url = '/uploads/posts/' . $filename;
 
