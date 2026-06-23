@@ -137,7 +137,7 @@ class LinkedInService
         if (empty($personId)) {
             throw new \RuntimeException(
                 'No se pudo obtener el ID de LinkedIn. ' .
-                'Respuesta /userinfo: ' . json_encode($userInfo)
+                'Respuesta /userinfo: ' . json_encode($userInfo, JSON_INVALID_UTF8_SUBSTITUTE)
             );
         }
 

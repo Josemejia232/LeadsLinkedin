@@ -70,7 +70,7 @@ class GeminiService
                 }
 
                 $data = $response->json();
-                $this->lastRawResponse = json_encode($data);
+                $this->lastRawResponse = json_encode($data, JSON_INVALID_UTF8_SUBSTITUTE);
 
                 $text = $data['choices'][0]['message']['content'] ?? '';
 
