@@ -15,9 +15,20 @@ class AiController extends Controller
 
     public function __construct()
     {
-        $this->baseUrl = getenv('VITE_INSFORGE_URL') ?: 'https://w66d8gas.us-east.insforge.app';
-        $this->anonKey = getenv('VITE_INSFORGE_ANON_KEY') ?: getenv('INSFORGE_ANON_KEY') ?: '';
-        $this->adminKey = getenv('INSFORGE_ADMIN_KEY') ?: '';
+        $url = getenv('INSFORGE_URL');
+        if ($url === false || $url === '') {
+            $url = getenv('VITE_INSFORGE_URL');
+        }
+        $this->baseUrl = ($url !== false && $url !== '') ? $url : 'https://w66d8gas.us-east.insforge.app';
+
+        $key = getenv('INSFORGE_ANON_KEY');
+        if ($key === false || $key === '') {
+            $key = getenv('VITE_INSFORGE_ANON_KEY');
+        }
+        $this->anonKey = ($key !== false && $key !== '') ? $key : '';
+
+        $admin = getenv('INSFORGE_ADMIN_KEY');
+        $this->adminKey = ($admin !== false && $admin !== '') ? $admin : $this->anonKey;
     }
 
     public function currentPlan()
@@ -292,20 +303,30 @@ class AiController extends Controller
 
             $ext = $matches[1];
             $binary = base64_decode($matches[2]);
+            if ($binary === false) {
+                return response()->json(['error' => 'Base64 decode failed'], 400);
+            }
+
             $key = $postId . '/' . uniqid() . '.' . $ext;
+            $objectPath = rawurlencode($key);
+            $uploadUrl = $this->baseUrl . '/api/storage/buckets/posts/objects/' . $objectPath;
 
             $response = Http::withHeaders([
                 'apikey' => $this->adminKey,
                 'Authorization' => 'Bearer ' . $this->adminKey,
-            ])->attach(
-                'file', $binary, $key
-            )->put($this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key));
+            ])->attach('file', $binary, $key)->put($uploadUrl);
 
             if ($response->failed()) {
-                return response()->json(['error' => 'Storage upload failed: ' . $response->body()], 500);
+                $errBody = $response->body();
+                \Illuminate\Support\Facades\Log::error('Image upload failed', [
+                    'url' => $uploadUrl,
+                    'status' => $response->status(),
+                    'body' => $errBody,
+                ]);
+                return response()->json(['error' => 'Storage upload failed: ' . $errBody], 500);
             }
 
-            $url = $this->baseUrl . '/api/storage/buckets/posts/objects/' . rawurlencode($key);
+            $url = $this->baseUrl . '/api/storage/buckets/posts/objects/' . $objectPath;
 
             $dbResponse = Http::withHeaders([
                 'apikey' => $this->anonKey,
@@ -315,16 +336,23 @@ class AiController extends Controller
             ]);
 
             if ($dbResponse->failed()) {
+                \Illuminate\Support\Facades\Log::error('Image DB update failed', [
+                    'status' => $dbResponse->status(),
+                    'body' => $dbResponse->body(),
+                ]);
                 return response()->json(['error' => 'Database update failed: ' . $dbResponse->body()], 500);
             }
 
-            // Also update local SQLite!
             \App\Models\DayPost::where('id', $postId)->update([
                 'image_url' => $url,
             ]);
 
             return response()->json(['url' => $url]);
         } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Image upload exception', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
