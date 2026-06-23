@@ -206,11 +206,14 @@ class LinkedInService
                 ],
             ]);
 
+        $statusCode = $response->status();
         $rawBody = $response->body();
         $body = $response->json();
         if (!is_array($body)) {
             $body = ['raw' => $rawBody];
         }
+
+        $body['http_status'] = $statusCode;
 
         $postId = $body['id'] ?? $response->header('x-restli-id') ?? '';
 
@@ -220,7 +223,7 @@ class LinkedInService
 
         if (empty($postId)) {
             \Illuminate\Support\Facades\Log::warning('LinkedIn createTextPost: no ID found', [
-                'status' => $response->status(),
+                'status' => $statusCode,
                 'headers' => $response->headers(),
                 'body' => $body,
                 'raw' => $rawBody,
@@ -231,14 +234,14 @@ class LinkedInService
             return [
                 'postId' => '',
                 'responseData' => $body,
-                'statusCode' => $response->status(),
+                'statusCode' => $statusCode,
             ];
         }
 
         return [
             'postId' => $postId,
             'responseData' => $body,
-            'statusCode' => $response->status(),
+            'statusCode' => $statusCode,
         ];
     }
 }
