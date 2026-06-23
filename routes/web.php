@@ -58,6 +58,14 @@ Route::middleware('auth')->group(function () {
     })->name('contacts.edit');
 });
 
+Route::get('/uploads/posts/{filename}', function (string $filename) {
+    $path = public_path('uploads/posts/' . $filename);
+    if (!file_exists($path)) {
+        abort(404);
+    }
+    return response()->file($path);
+})->where('filename', '.*');
+
 Route::post('/api/ai/generate-titles', [App\Http\Controllers\Api\AiController::class, 'generateTitles']);
 Route::post('/api/ai/generate-plan-content', [App\Http\Controllers\Api\AiController::class, 'generatePlanContent']);
 Route::post('/api/ai/generate-missing-fields', [App\Http\Controllers\Api\AiController::class, 'generateMissingFields']);
