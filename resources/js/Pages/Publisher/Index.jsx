@@ -120,10 +120,10 @@ export default function PublisherIndex() {
                                     <div key={d} className="py-2 text-xs font-semibold text-gray-500">{d}</div>
                                 ))}
                                 {calendar?.flatMap((week) => week)?.map((day, idx) => (
-                                    day.post ? (
+                                    day.posts?.length > 0 ? (
                                         <Link
                                             key={idx}
-                                            href={route('plans.show', day.post.plan_id)}
+                                            href={route('plans.show', day.posts[0].plan_id)}
                                             className={`min-h-[80px] cursor-pointer rounded-lg border p-1 transition hover:ring-2 hover:ring-indigo-400 ${
                                                 day.is_current_month
                                                     ? 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100'
@@ -133,9 +133,14 @@ export default function PublisherIndex() {
                                             {day.is_current_month && (
                                                 <>
                                                     <span className="text-xs font-medium text-indigo-700">{day.day}</span>
-                                                    <div className="mt-1 truncate rounded bg-white px-1 text-xs text-gray-600 shadow-sm" title={day.post.title}>
-                                                        {day.post.title}
-                                                    </div>
+                                                    {day.posts.slice(0, 3).map((p, pi) => (
+                                                        <div key={pi} className="mt-1 truncate rounded bg-white px-1 text-xs text-gray-600 shadow-sm" title={p.title}>
+                                                            {p.title}
+                                                        </div>
+                                                    ))}
+                                                    {day.posts.length > 3 && (
+                                                        <div className="mt-0.5 text-xs text-indigo-500">+{day.posts.length - 3} más</div>
+                                                    )}
                                                 </>
                                             )}
                                         </Link>

@@ -48,13 +48,36 @@ class PublisherController extends Controller
             $q->where('user_id', $userId);
         })->with('dayPost.plan')->orderBy('scheduled_date')->get();
 
-        $allPosts = DayPost::whereHas('plan', function ($q) use ($userId) {
-            $q->where('user_id', $userId);
-        })->whereMonth('date', $month)
-         ->whereYear('date', $year)
-         ->get();
+        // Calendar items: scheduled posts use their scheduled_date, unscheduled posts use their plan date
+        $calendarPosts = collect();
 
-        $calendar = $this->buildCalendar($year, $month, $allPosts);
+        foreach ($scheduledPosts as $sp) {
+            $dp = $sp->dayPost;
+            if ($dp) {
+                $dp->calendar_date = $sp->scheduled_date->format('Y-m-d');
+                $calendarPosts->push($dp);
+            }
+        }
+
+        // Add day_posts without a schedule, shown on their original date
+        $scheduledIds = $scheduledPosts->pluck('day_post_id');
+        $unscheduledPosts = DayPost::whereHas('plan', function ($q) use ($userId) {
+            $q->where('user_id', $userId);
+        })->whereNotIn('id', $scheduledIds)
+          ->whereMonth('date', $month)
+          ->whereYear('date', $year)
+          ->get();
+
+        foreach ($unscheduledPosts as $dp) {
+            $dp->calendar_date = $dp->date->format('Y-m-d');
+            $calendarPosts->push($dp);
+        }
+
+        $calendarPosts = $calendarPosts->filter(function ($dp) use ($year, $month) {
+            return str_starts_with($dp->calendar_date, "{$year}-" . str_pad($month, 2, '0', STR_PAD_LEFT));
+        });
+
+        $calendar = $this->buildCalendar($year, $month, $calendarPosts);
 
         $months = [
             1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
@@ -142,18 +165,19 @@ class PublisherController extends Controller
         $lastDay = $date->copy()->endOfMonth();
         $startOfWeek = $date->copy()->startOfWeek(Carbon::MONDAY);
 
-        $postsByDate = $posts->keyBy(fn ($p) => $p->date->format('Y-m-d'));
+        $postsByDate = $posts->groupBy(fn ($p) => $p->calendar_date ?? $p->date->format('Y-m-d'));
         $weeks = [];
         $currentWeek = [];
 
         $cursor = $startOfWeek->copy();
         while ($cursor->lte($lastDay) || count($currentWeek) > 0) {
+            $dayPosts = $postsByDate->get($cursor->format('Y-m-d'), collect());
             $currentWeek[] = [
                 'date' => $cursor->format('Y-m-d'),
                 'day' => $cursor->day,
                 'is_current_month' => $cursor->month === $month,
                 'is_weekend' => $cursor->isWeekend(),
-                'post' => $postsByDate->get($cursor->format('Y-m-d')),
+                'posts' => $dayPosts,
             ];
 
             if ($cursor->dayOfWeek === Carbon::SUNDAY) {
