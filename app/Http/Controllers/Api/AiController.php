@@ -307,41 +307,19 @@ class AiController extends Controller
                 return response()->json(['error' => 'Base64 decode failed'], 400);
             }
 
-            $key = $postId . '/' . uniqid() . '.' . $ext;
-            $objectPath = rawurlencode($key);
-            $uploadUrl = $this->baseUrl . '/api/storage/buckets/posts/objects/' . $objectPath;
+            $extMap = ['jpeg' => 'jpg', 'jpg' => 'jpg', 'png' => 'png', 'gif' => 'gif', 'webp' => 'webp'];
+            $safeExt = $extMap[$ext] ?? 'jpg';
 
-            $response = Http::withHeaders([
-                'apikey' => $this->adminKey,
-                'Authorization' => 'Bearer ' . $this->adminKey,
-            ])->attach('file', $binary, $key)->put($uploadUrl);
-
-            if ($response->failed()) {
-                $errBody = $response->body();
-                \Illuminate\Support\Facades\Log::error('Image upload failed', [
-                    'url' => $uploadUrl,
-                    'status' => $response->status(),
-                    'body' => $errBody,
-                ]);
-                return response()->json(['error' => 'Storage upload failed: ' . $errBody], 500);
+            $dir = public_path('uploads/posts');
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0755, true);
             }
 
-            $url = $this->baseUrl . '/api/storage/buckets/posts/objects/' . $objectPath;
+            $filename = $postId . '_' . uniqid() . '.' . $safeExt;
+            $savePath = $dir . '/' . $filename;
+            file_put_contents($savePath, $binary);
 
-            $dbResponse = Http::withHeaders([
-                'apikey' => $this->anonKey,
-                'Authorization' => 'Bearer ' . $this->anonKey,
-            ])->patch($this->baseUrl . '/api/database/records/day_posts?id=eq.' . $postId, [
-                'image_url' => $url,
-            ]);
-
-            if ($dbResponse->failed()) {
-                \Illuminate\Support\Facades\Log::error('Image DB update failed', [
-                    'status' => $dbResponse->status(),
-                    'body' => $dbResponse->body(),
-                ]);
-                return response()->json(['error' => 'Database update failed: ' . $dbResponse->body()], 500);
-            }
+            $url = '/uploads/posts/' . $filename;
 
             \App\Models\DayPost::where('id', $postId)->update([
                 'image_url' => $url,
